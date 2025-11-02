@@ -1,0 +1,7 @@
+FROM openjdk:17-jdk-slim
+
+WORKDIR /app
+
+COPY ./target/product_service-0.0.1-SNAPSHOT.jar /app/product_service.jar
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

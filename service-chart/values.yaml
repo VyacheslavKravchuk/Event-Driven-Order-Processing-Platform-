@@ -1,0 +1,65 @@
+# ... (секции баз данных и Kafka остаются без изменений, если они нужны)
+
+# Конфигурация микросервисов
+services:
+  api-gateway:
+    # Используем заглушку nginx для тестирования развертывания и сети
+    image:
+      repository: nginx # Стандартный, легкий образ
+      tag: "1.23.1"     # Стабильная версия
+    replicas: 2
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 200m
+      requests:
+        memory: 128Mi
+        cpu: 100m
+    # Env-переменные пока не нужны для заглушки, но можно оставить
+    env:
+      - name: SPRING_PROFILES_ACTIVE
+        value: prod
+
+  auth-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 2
+    # ... (остальные параметры, включая database и env, можно оставить)
+
+  user-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 2
+    # ...
+
+  product-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 2
+    # ...
+
+  inventory-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 2
+    # ...
+
+  order-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 2
+    # ...
+
+  notification-service:
+    image:
+      repository: nginx
+      tag: "1.23.1"
+    replicas: 1
+    # ...
+
+# ... (секции Kafka)
