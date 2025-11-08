@@ -39,3 +39,10 @@ build/
 /.gigaide/
 /.idea/
 /.idea/
+
+# IDE specific files and folders
+.idea/
+.gigaide/
+*.iml
+*.ipr
+*.iws
