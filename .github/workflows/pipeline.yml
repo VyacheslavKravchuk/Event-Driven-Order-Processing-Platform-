@@ -20,7 +20,7 @@ jobs:
   define_services:
     runs-on: ubuntu-latest
     outputs:
-      service_list: ${{ steps.set_services.outputs.service_list }} # Указываем на output шага set_services
+      service_list: ${{ steps.set_services.outputs.service_list }}
     steps:
       - name: Set Service List as Output
         id: set_services
@@ -52,19 +52,19 @@ jobs:
             ${{ runner.os }}-m2-
 
       - name: Make mvnw executable
-        run: chmod +x ./${{ matrix.service }}/mvnw # Предоставляем права исполнение для mvnw
+        run: chmod +x ./${{ matrix.service }}/mvnw
 
       - name: Install dependencies for ${{ matrix.service }}
-        run: cd ${{ matrix.service }} && ./mvnw install -DskipTests=true -f pom.xml  # Переходим в директорию сервиса
+        run: cd ${{ matrix.service }} && ./mvnw install -DskipTests=true -f pom.xml
 
       - name: Run Unit Tests for ${{ matrix.service }}
-        run: cd ${{ matrix.service }} && ./mvnw test -f pom.xml # Переходим в директорию сервиса
+        run: cd ${{ matrix.service }} && ./mvnw test -f pom.xml
 
       - name: Run Checkstyle for ${{ matrix.service }}
-        run: cd ${{ matrix.service }} && ./mvnw checkstyle:checkstyle -f pom.xml # Переходим в директорию сервиса
+        run: cd ${{ matrix.service }} && ./mvnw checkstyle:checkstyle -f pom.xml
 
       - name: Generate JaCoCo Coverage Report for ${{ matrix.service }}
-        run: cd ${{ matrix.service }} && ./mvnw org.jacoco:jacoco-maven-plugin:prepare-agent process-classes org.jacoco:jacoco-maven-plugin:report -f pom.xml # Переходим в директорию сервиса
+        run: cd ${{ matrix.service }} && ./mvnw org.jacoco:jacoco-maven-plugin:prepare-agent process-classes org.jacoco:jacoco-maven-plugin:report -f pom.xml
 
       - name: Check JaCoCo Coverage for ${{ matrix.service }}
         run: |
