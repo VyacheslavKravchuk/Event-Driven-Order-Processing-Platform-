@@ -50,21 +50,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2-
 
+      - name: Make mvnw executable
+        run: chmod +x ./${{ matrix.service }}/mvnw # Предоставляем права исполнение для mvnw
+
       - name: Install dependencies for ${{ matrix.service }}
-        run: ./mvnw install -DskipTests=true -f ${{ matrix.service }}/pom.xml
+        run: cd ${{ matrix.service }} && ./mvnw install -DskipTests=true -f pom.xml  # Переходим в директорию сервиса
 
       - name: Run Unit Tests for ${{ matrix.service }}
-        run: ./mvnw test -f ${{ matrix.service }}/pom.xml
+        run: cd ${{ matrix.service }} && ./mvnw test -f pom.xml # Переходим в директорию сервиса
 
       - name: Run Checkstyle for ${{ matrix.service }}
-        run: ./mvnw checkstyle:checkstyle -f ${{ matrix.service }}/pom.xml
+        run: cd ${{ matrix.service }} && ./mvnw checkstyle:checkstyle -f pom.xml # Переходим в директорию сервиса
 
       - name: Generate JaCoCo Coverage Report for ${{ matrix.service }}
-        run: ./mvnw org.jacoco:jacoco-maven-plugin:prepare-agent process-classes org.jacoco:jacoco-maven-plugin:report -f ${{ matrix.service }}/pom.xml
+        run: cd ${{ matrix.service }} && ./mvnw org.jacoco:jacoco-maven-plugin:prepare-agent process-classes org.jacoco:jacoco-maven-plugin:report -f pom.xml # Переходим в директорию сервиса
 
       - name: Check JaCoCo Coverage for ${{ matrix.service }}
         run: |
-          JACOCO_COVERAGE=$(( $(mvn org.jacoco:jacoco-maven-plugin:report -f ${{ matrix.service }}/pom.xml | grep "lines.covered" | awk '{print $3}' | tr -d '%') ))
+          cd ${{ matrix.service }}
+          JACOCO_COVERAGE=$(( $(./mvnw org.jacoco:jacoco-maven-plugin:report | grep "lines.covered" | awk '{print $3}' | tr -d '%') ))
           echo "Coverage: $JACOCO_COVERAGE%"
           if [[ "$JACOCO_COVERAGE" -lt "80" ]]; then
             echo "Code coverage is less than 80%. Failing the build."
