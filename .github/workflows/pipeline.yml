@@ -18,9 +18,11 @@ env:
 jobs:
   check_build_test:
     runs-on: ubuntu-latest
+    env:
+      SERVICES_LIST: ${{ fromJson(env.SERVICES) }} # Преобразуем строку в список в рамках job
     strategy:
       matrix:
-        service: ${{ fromJson(env.SERVICES) }} # Преобразование строки в список
+        service: ${{ fromJson(env.SERVICES) }} # Преобразуем строку в список
 
     steps:
       - name: Checkout repository
@@ -64,6 +66,8 @@ jobs:
   docker_build_push:
     runs-on: ubuntu-latest
     needs: check_build_test
+    env:
+      SERVICES_LIST: ${{ fromJson(env.SERVICES) }} # Преобразуем строку в список в рамках job
     strategy:
       matrix:
         service: ${{ fromJson(env.SERVICES) }}
