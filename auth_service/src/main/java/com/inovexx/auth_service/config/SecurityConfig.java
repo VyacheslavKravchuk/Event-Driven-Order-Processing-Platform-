@@ -7,11 +7,10 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-//import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import jakarta.servlet.ServletException; // Может потребоваться, если он используется в JwtRequestFilter/EntryPoint
-import jakarta.servlet.http.HttpServletRequest; // Может потребоваться
-import jakarta.servlet.http.HttpServletResponse; // Может потребоваться
+
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.http.HttpMethod;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,17 +19,17 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity()
+@EnableMethodSecurity // Включает безопасность на уровне методов (@PreAuthorize, @PostAuthorize)
 public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtRequestFilter jwtRequestFilter;
 
+    // Конструктор с инъекцией зависимостей
     public SecurityConfig(UserDetailsService userDetailsService,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           JwtRequestFilter jwtRequestFilter) {
@@ -39,11 +38,13 @@ public class SecurityConfig {
         this.jwtRequestFilter = jwtRequestFilter;
     }
 
+    // Bean для кодирования паролей
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // Bean для AuthenticationManager (менеджер аутентификации)
     @Bean
     public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder =
@@ -55,24 +56,32 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+
                 .authorizeHttpRequests(auth -> auth
-                        // Разрешаем все OPTIONS запросы
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // Разрешаем конкретные URL для Swagger и Users (без метода OPTIONS)
+                        // Используем permitAll() здесь
                         .requestMatchers(
-                                "/users/**",
+                                "/users/register",
+                                "/users/authenticate",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Все остальные запросы требуют аутентификации
                         .anyRequest().authenticated()
                 )
+
                 .exceptionHandling(ex -> ex
+                        // EntryPoint будет вызван только для тех, кто не прошел permitAll()
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
+
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
