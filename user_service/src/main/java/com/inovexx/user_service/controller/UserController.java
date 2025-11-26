@@ -32,6 +32,8 @@ public class UserController {
 
     private final UserService userService;
 
+
+
     @Operation(summary = "Получение всех пользователей",
             description = "Возвращает список всех пользователей (только для менеджеров и администраторов).",
             responses = {
@@ -82,5 +84,27 @@ public class UserController {
         return ResponseEntity.ok(userService.findById(id));
     }
 
+    @Operation(summary = "Изменение информации о пользователе",
+            description = "Позволяет изменить информацию о профиле текущего пользователя.",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Обновленная информация о пользователе",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = UserDto.class))),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Успешное обновление",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = UserDto.class))),
+                    @ApiResponse(responseCode = "400", description = "Некорректный запрос"),
+                    @ApiResponse(responseCode = "401", description = "Не авторизован")
+            },
+            tags = "Users"
+    )
+    @PatchMapping("/me")
+    @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
+    public ResponseEntity<UserDto> updateUser(@Valid @RequestBody UserDto userDto, Principal principal) throws JsonProcessingException {
+        logger.info("Запрос обновления пользователя");
+        String username = principal.getName();
+        return ResponseEntity.ok(userService.updateUser(userDto, username));
+    }
 
 }

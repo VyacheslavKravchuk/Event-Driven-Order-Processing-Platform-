@@ -1,89 +1,103 @@
 package com.inovexx.user_service.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inovexx.user_service.entity.User;
 import com.inovexx.user_service.entity.UserDto;
+import com.inovexx.user_service.exception.UserAlreadyExistsException;
 import com.inovexx.user_service.exception.UserNotFoundException;
 import com.inovexx.user_service.mapper.UserMapper;
+import com.inovexx.user_service.repository.UserRepository;
 import com.inovexx.user_service.service.UserService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.KafkaException;
 
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+
     private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
-    private final WebClient webClient;
+    private final UserRepository userRepository;
+
     private final UserMapper userMapper;
+
+    private final ObjectMapper objectMapper;
+
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    @Value("${auth.service.url}")
-    private String authServiceUrl;
 
     @Override
     public UserDto findUserByUsername(String username) {
         logger.info("Поиск записи о пользователе по username: {}", username);
-        return webClient.get()
-                .uri(authServiceUrl + "/users/username/" + username)
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> {
-                    logger.error("User not found with username: {}", username);
-                    return Mono.error(new UserNotFoundException("User not found with username: " + username));
-                })
-                .bodyToMono(User.class)
-                .map(userMapper::userToUserDto)
-                .block(); // Ждем результат
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new UserNotFoundException("User not found with username: " + username));
+        return userMapper.userToUserDto(user);
     }
 
     @Override
     public UserDto findById(Long id) {
         logger.info("Поиск записи о пользователе по ID: {}", id);
-        return webClient.get()
-                .uri(authServiceUrl + "/users/" + id)
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> {
-                    logger.error("User not found with id: {}", id);
-                    return Mono.error(new UserNotFoundException("User not found with id: " + id));
-                })
-                .bodyToMono(User.class)
-                .map(userMapper::userToUserDto)
-                .block();
+        User user = userRepository.findByUserId(id)
+                .orElseThrow(() ->
+                        new UserNotFoundException("User not found with id: " + id));
+        return userMapper.userToUserDto(user);
     }
 
-    // Получение всех пользователей.
     @Override
     public List<UserDto> findAll() {
         logger.info("Получение всех записей пользователей");
-        User[] usersArray = webClient.get()
-                .uri(authServiceUrl + "/users")
-                .retrieve()
-                .onStatus(HttpStatusCode::is2xxSuccessful, response -> Mono.empty())
-                .bodyToMono(User[].class)
-                .block(); // Ждем результат
-
-        List<User> users = Arrays.asList(Objects.requireNonNull(usersArray));
-        List<UserDto> userDtos = users.stream()
+        List<UserDto> userDtos = userRepository.findAll()
+                .stream()
                 .map(userMapper::userToUserDto)
                 .collect(Collectors.toList());
-
         logger.info("Найдено {} записей пользователей", userDtos.size());
         return userDtos;
     }
 
+    @Override
+    @Transactional
+    public UserDto updateUser(UserDto userDtoNew, String currentUsername) throws JsonProcessingException, KafkaException {
+        logger.info("Обновление профиля пользователя: {}", currentUsername);
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() ->
+                        new UserNotFoundException("Пользователь с таким именем пользователя не найден: " + currentUsername));
+
+        userMapper.updateUserFromDto(userDtoNew, user);
+
+        if (!user.getEmail().equals(userDtoNew.getEmail())) {
+            if (userRepository.existsByEmail(userDtoNew.getEmail())) {
+                throw new UserAlreadyExistsException("Пользователь с таким email уже существует.");
+            }
+        }
+
+        if (!user.getUsername().equals(userDtoNew.getUsername())) {
+            if (userRepository.existsByUsername(userDtoNew.getUsername())) {
+                throw new UserAlreadyExistsException("Пользователь с таким именем пользователя уже существует.");
+            }
+        }
+
+        userRepository.save(user);
+
+        String userJson = objectMapper.writeValueAsString(user);
+        kafkaTemplate.send("user-events", user.getUserId().toString(), userJson); // Используем правильный топик
+
+        logger.info("Сообщение отправлено в Kafka об обновлении пользователя: {}", user.getUsername());
+
+        return userMapper.userToUserDto(user);
+    }
 
 }

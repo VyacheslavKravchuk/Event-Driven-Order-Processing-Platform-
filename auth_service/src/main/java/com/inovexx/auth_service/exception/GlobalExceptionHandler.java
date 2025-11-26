@@ -1,14 +1,17 @@
 package com.inovexx.auth_service.exception;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.kafka.KafkaException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.*;
@@ -154,5 +157,46 @@ public class GlobalExceptionHandler {
         String errorId = UUID.randomUUID().toString();
         String message = "Конкурентное обновление данных. Пожалуйста, повторите попытку.";
         return createErrorResponse(HttpStatus.CONFLICT, message, ex, errorId);
+    }
+
+    /**
+     * Обрабатывает исключение {@link JsonProcessingException}, возникающее при обработке JSON.
+     * Возвращает HTTP статус 500 (INTERNAL SERVER ERROR) с сообщением об ошибке.
+     *
+     * @param ex Исключение {@link JsonProcessingException}.
+     * @return ResponseEntity с JSON телом ответа об ошибке.
+     */
+    @ExceptionHandler(JsonProcessingException.class)
+    public ResponseEntity<ErrorResponse> handleJsonProcessingException(JsonProcessingException ex) {
+        logger.error("Ошибка при сериализации JSON для Kafka: {}", ex.getMessage(), ex);
+
+        // Создаем объект ответа об ошибке (класс ErrorResponse должен быть определен у вас)
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Ошибка обработки данных при подготовке сообщения в Kafka",
+                System.currentTimeMillis()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Обработчик для общих исключений Kafka (например, недоступность брокера).
+     * Возвращает HTTP статус 503 (SERVICE_UNAVAILABLE) с сообщением об ошибке.
+     *
+     * @param ex Исключение {@link KafkaException}.
+     * @return ResponseEntity с JSON телом ответа об ошибке.
+     */
+    @ExceptionHandler(KafkaException.class)
+    public ResponseEntity<ErrorResponse> handleKafkaException(KafkaException ex) {
+        logger.error("Ошибка взаимодействия с Kafka: {}", ex.getMessage(), ex);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.SERVICE_UNAVAILABLE.value(), // Статус 503 Service Unavailable
+                "Сервис обмена сообщениями временно недоступен",
+                System.currentTimeMillis()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.SERVICE_UNAVAILABLE);
     }
 }
