@@ -1,18 +1,20 @@
 package com.inovexx.product_service.service.impl;
 
 import java.util.List;
+
+
 import com.inovexx.product_service.dto.ProductRequest;
 import com.inovexx.product_service.dto.ProductResponse;
+import com.inovexx.product_service.exception.ProductNotFoundException;
+import com.inovexx.product_service.mapper.ProductMapper;
 import com.inovexx.product_service.model.Product;
 import com.inovexx.product_service.repository.ProductRepository;
 import com.inovexx.product_service.service.ProductService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -22,15 +24,16 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductMapper productMapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
     public void createProduct(ProductRequest productRequest) {
         log.info("Начало создания продукта: {}", productRequest);
         Product product = Product.builder()
-                .name(productRequest.getName())
-                .description(productRequest.getDescription())
-                .price(productRequest.getPrice())
+                .name(productRequest.name())
+                .description(productRequest.description())
+                .price(productRequest.price())
                 .build();
 
         productRepository.save(product);
@@ -43,39 +46,31 @@ public class ProductServiceImpl implements ProductService {
     public List<ProductResponse> getAllProducts() {
         log.info("Получен запрос на получение всех продуктов.");
         List<Product> products = productRepository.findAll();
-        List<ProductResponse> productResponses = products.stream()
-                .map(this::mapToProductResponse).collect(Collectors.toList());
+        List<ProductResponse> productResponses = products.stream().map(productMapper::productToProductDto).collect(Collectors.toList());
         log.info("Возвращено {} продуктов.", productResponses.size());
         return productResponses;
     }
 
-    @Override
-    public ProductResponse mapToProductResponse(Product product) {
-        return ProductResponse.builder()
-                .id(product.getId())
-                .name(product.getName())
-                .description(product.getDescription())
-                .price(product.getPrice())
-                .build();
-    }
+
 
     @Override
-    @Transactional
     public ProductResponse updateProduct(String id, ProductRequest productRequest) {
         log.info("Начало обновления продукта с ID: {}, данные: {}", id, productRequest);
         Optional<Product> optionalProduct = productRepository.findById(id);
 
         if (optionalProduct.isPresent()) {
             Product product = optionalProduct.get();
-            product.setName(productRequest.getName());
-            product.setDescription(productRequest.getDescription());
-            product.setPrice(productRequest.getPrice());
+            product.setName(productRequest.name());
+            product.setDescription(productRequest.description());
+            product.setPrice(productRequest.price());
 
             Product updatedProduct = productRepository.save(product);
             log.info("Продукт с ID: {} успешно обновлен.", updatedProduct.getId());
-            kafkaTemplate.send("productTopic", "Product updated: " + updatedProduct.getName());
-            log.info("Сообщение отправлено в Kafka об обновлении продукта: {}", updatedProduct.getName());
-            return mapToProductResponse(updatedProduct);
+            kafkaTemplate.send("productTopic", "Product updated: "
+                    + updatedProduct.getName());
+            log.info("Сообщение отправлено в Kafka об обновлении продукта: {}",
+                    updatedProduct.getName());
+            return productMapper.productToProductDto(updatedProduct);
 
         } else {
             log.warn("Продукт с ID: {} не найден.", id);

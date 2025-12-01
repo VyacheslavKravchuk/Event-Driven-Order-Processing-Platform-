@@ -90,9 +90,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     private Inventory toEntity(InventoryDto dto) {
         Inventory inventory = new Inventory();
-        inventory.setProductId(dto.getProductId());
-        inventory.setAvailableStock(dto.getAvailableStock());
-        inventory.setReservedStock(dto.getReservedStock());
+        inventory.setProductId(dto.productId());
+        inventory.setAvailableStock(dto.availableStock());
+        inventory.setReservedStock(dto.reservedStock());
         return inventory;
     }
 

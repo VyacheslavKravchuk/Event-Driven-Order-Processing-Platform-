@@ -76,7 +76,7 @@ public class InventoryController {
     public ResponseEntity<InventoryDto> createInventory(@RequestBody InventoryDto inventoryDto) {
         logger.info("Запрос на создание новой записи инвентаря: {}", inventoryDto);
         InventoryDto savedDto = inventoryService.create(inventoryDto);
-        logger.info("Запись инвентаря успешно создана с ID: {}", savedDto.getProductId());
+        logger.info("Запись инвентаря успешно создана с ID: {}", savedDto.productId());
         return ResponseEntity.status(HttpStatus.CREATED).body(savedDto);
     }
 
@@ -92,14 +92,11 @@ public class InventoryController {
             @Parameter(description = "ID продукта") @PathVariable Long productId,
             @Parameter(description = "Новое количество запасов") @RequestParam int newStock) {
         logger.info("Запрос на обновление запасов для продукта ID: {}, новое количество: {}", productId, newStock);
-        try {
-            InventoryDto updatedDto = inventoryService.updateStock(productId, newStock);
-            logger.info("Запасы для продукта ID: {} успешно обновлены", productId);
-            return ResponseEntity.ok(updatedDto);
-        } catch (NoSuchElementException e) {
-            logger.warn("Продукт с ID: {} не найден при попытке обновления запасов", productId);
-            return ResponseEntity.notFound().build();
-        }
+
+        InventoryDto updatedDto = inventoryService.updateStock(productId, newStock);
+        logger.info("Запасы для продукта ID: {} успешно обновлены", productId);
+        return ResponseEntity.ok(updatedDto);
+
     }
 
     @Operation(summary = "Удалить запись инвентаря (только Администратор)")
@@ -113,13 +110,10 @@ public class InventoryController {
     public ResponseEntity<Void> deleteInventory(
             @Parameter(description = "ID продукта") @PathVariable Long productId) {
         logger.info("Запрос на удаление записи инвентаря с ID продукта: {}", productId);
-        try {
-            inventoryService.deleteById(productId);
-            logger.info("Запись инвентаря с ID продукта: {} успешно удалена", productId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            logger.error("Ошибка при удалении записи инвентаря с ID продукта: {}", productId, e);
-            return ResponseEntity.notFound().build();
-        }
+
+        inventoryService.deleteById(productId);
+        logger.info("Запись инвентаря с ID продукта: {} успешно удалена", productId);
+        return ResponseEntity.noContent().build();
+
     }
 }

@@ -50,7 +50,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDto findById(Long id) {
         logger.info("Поиск записи о пользователе по ID: {}", id);
-        User user = userRepository.findByUserId(id)
+        User user = userRepository.findById(id)
                 .orElseThrow(() ->
                         new UserNotFoundException("User not found with id: " + id));
         return userMapper.userToUserDto(user);
@@ -71,29 +71,29 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserDto updateUser(UserDto userDtoNew, String currentUsername) throws JsonProcessingException, KafkaException {
         logger.info("Обновление профиля пользователя: {}", currentUsername);
-
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() ->
                         new UserNotFoundException("Пользователь с таким именем пользователя не найден: " + currentUsername));
 
         userMapper.updateUserFromDto(userDtoNew, user);
-
-        if (!user.getEmail().equals(userDtoNew.getEmail())) {
-            if (userRepository.existsByEmail(userDtoNew.getEmail())) {
+        if (!user.getEmail().equals(userDtoNew.email())) {
+            if (userRepository.existsByEmail(userDtoNew.email())) {
                 throw new UserAlreadyExistsException("Пользователь с таким email уже существует.");
             }
         }
 
-        if (!user.getUsername().equals(userDtoNew.getUsername())) {
-            if (userRepository.existsByUsername(userDtoNew.getUsername())) {
+        if (!user.getUsername().equals(userDtoNew.username())) {
+            if (userRepository.existsByUsername(userDtoNew.username())) {
                 throw new UserAlreadyExistsException("Пользователь с таким именем пользователя уже существует.");
             }
         }
 
         userRepository.save(user);
 
+        // Отправка события в Kafka
+        // Лучше отправлять полную информацию, а не просто строку
         String userJson = objectMapper.writeValueAsString(user);
-        kafkaTemplate.send("user-events", user.getUserId().toString(), userJson); // Используем правильный топик
+        kafkaTemplate.send("user-events", user.getId().toString(), userJson); // Используем правильный топик
 
         logger.info("Сообщение отправлено в Kafka об обновлении пользователя: {}", user.getUsername());
 

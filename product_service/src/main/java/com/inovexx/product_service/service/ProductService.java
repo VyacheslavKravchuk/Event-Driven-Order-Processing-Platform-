@@ -12,8 +12,6 @@ public interface ProductService {
 
     List<ProductResponse> getAllProducts();
 
-    ProductResponse mapToProductResponse(Product product);
-
     ProductResponse updateProduct(String id, ProductRequest productRequest);
 
     void deleteProduct(String id);

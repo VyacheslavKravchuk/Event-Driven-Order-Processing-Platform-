@@ -1,17 +1,11 @@
 package com.inovexx.inventory_service.dto;
 
-import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor // Add this
-@ToString
-public class InventoryDto {
+public record InventoryDto (
 
-    private Long productId;
+        Long productId,
 
-    private int availableStock;
+        int availableStock,
 
-    private int reservedStock;
-}
+        int reservedStock
+){}

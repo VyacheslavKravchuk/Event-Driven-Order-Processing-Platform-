@@ -1,21 +1,17 @@
 package com.inovexx.product_service.dto;
 
-import lombok.Builder;
-import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.math.BigDecimal;
 
-@Data
-@Builder
-public class ProductDto {
+public record ProductDto (
 
-    private String name;
+        String name,
 
-    private String description;
+        String description,
 
-    @Field("price_usd") 
-    private BigDecimal price;
+        @Field("price_usd")
+        BigDecimal price,
 
-    private String category;
-}
+        String category
+){}

@@ -26,21 +26,21 @@ public class UserAuthServiceImpl implements UserAuthService {
     @Override
     public UserAuth registerNewUser(UserDto userDto) throws JsonProcessingException {
 
-        if (userRepository.existsByUsername(userDto.getUsername())) {
+        if (userRepository.existsByUsername(userDto.username())) {
             throw new IllegalArgumentException("Имя пользователя уже существует.");
         }
 
-        if (userRepository.existsByEmail(userDto.getEmail())) {
+        if (userRepository.existsByEmail(userDto.email())) {
             throw new IllegalArgumentException("Email уже существует.");
         }
 
         UserAuth userAuth = new UserAuth();
-        userAuth.setUsername(userDto.getUsername());
-        userAuth.setPassword(passwordEncoder.encode(userDto.getPassword()));
-        userAuth.setEmail(userDto.getEmail());
-        userAuth.setFirstName(userDto.getFirstName());
-        userAuth.setLastName(userDto.getLastName());
-        userAuth.setRole(userDto.getRole());
+        userAuth.setUsername(userDto.username());
+        userAuth.setPassword(passwordEncoder.encode(userDto.password()));
+        userAuth.setEmail(userDto.email());
+        userAuth.setFirstName(userDto.firstName());
+        userAuth.setLastName(userDto.lastName());
+        userAuth.setRole(userDto.role());
 
         UserAuth savedUser = userRepository.save(userAuth);
         String userJson = objectMapper.writeValueAsString(savedUser);
