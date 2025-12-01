@@ -36,3 +36,13 @@ build/
 
 ### Mac OS ###
 .DS_Store
+/.gigaide/
+/.idea/
+/.idea/
+
+# IDE specific files and folders
+.idea/
+.gigaide/
+*.iml
+*.ipr
+*.iws
