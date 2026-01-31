@@ -16,7 +16,7 @@ import java.util.function.Function;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret-key}")
+    @Value("${spring.security.jwt.secret}")
     private String secretKey;
 
     private static final Logger logger =
@@ -24,6 +24,7 @@ public class JwtTokenProvider {
 
     // Метод для получения ключа подписи из Base64 строки
     private SecretKey getSigningKey() {
+        logger.info("Используемый секретный ключ (длина): {}", secretKey.length());
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -32,11 +33,11 @@ public class JwtTokenProvider {
 
     // Метод для извлечения всех данных (Claims) из токена
     public Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder() // Получаем Builder
-                .setSigningKey(getSigningKey()) // Устанавливаем ключ подписи
-                .build() // Собираем парсер
-                .parseClaimsJws(token) // Парсим токен
-                .getBody(); // Получаем тело (Claims)
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     // Извлечение имени пользователя (Subject)
@@ -62,8 +63,10 @@ public class JwtTokenProvider {
     // Метод валидации токена с обработкой исключений
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey())
-                    .build().parseClaimsJws(token);
+            Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token);
             return true;
         } catch (SignatureException e) {
             logger.error("Неверная JWT подпись: {}", e.getMessage());

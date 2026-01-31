@@ -38,7 +38,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                    FilterChain filterChain) throws ServletException,
+            IOException {
+
+        String authHeader = request.getHeader("Authorization");
+        logger.info("Дошел ли заголовок Authorization: {}", (authHeader != null));
 
         String jwt = getJwtFromRequest(request);
 
@@ -71,6 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 logger.debug("Аутентификация установлена для пользователя: {}", username);
+                logger.info("Token: {}", jwt);
 
             } catch (Exception e) {
                 // Если при парсинге произошла ошибка (например, нет клейма "roles")
