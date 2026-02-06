@@ -1,8 +1,9 @@
 package com.inovexx.user_service.mapper;
 
 import com.inovexx.user_service.entity.User;
-import com.inovexx.user_service.entity.UserDto;
+import com.inovexx.user_service.dto.UserDto;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
@@ -13,5 +14,6 @@ public interface UserMapper {
 
     User userDtoToUser(UserDto userDto);
 
+    @Mapping(target = "id", ignore = true) // Защита ID от изменений
     void updateUserFromDto(UserDto userDto, @MappingTarget User user);
 }

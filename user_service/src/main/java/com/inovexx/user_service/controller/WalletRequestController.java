@@ -2,7 +2,9 @@ package com.inovexx.user_service.controller;
 
 import com.inovexx.user_service.dto.WalletRequestDto;
 import com.inovexx.user_service.service.WalletRequestService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,18 +14,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/transactions")
+@RequiredArgsConstructor
+@RequestMapping("/api/transactions")
+@SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Операции с кошельком", description = "Управление вводом и выводом средств")
 public class WalletRequestController {
 
     private final WalletRequestService walletRequestService;
-
-    public WalletRequestController(WalletRequestService walletRequestService) {
-        this.walletRequestService = walletRequestService;
-    }
 
     @PostMapping("/{walletId}")
     @Operation(

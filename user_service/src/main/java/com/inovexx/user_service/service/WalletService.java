@@ -2,7 +2,6 @@ package com.inovexx.user_service.service;
 
 import com.inovexx.user_service.dto.WalletDto;
 import com.inovexx.user_service.dto.WalletRegisteredRequest;
-import com.inovexx.user_service.entity.wallet.WalletRegistered;
 
 import java.math.BigDecimal;
 
@@ -17,4 +16,6 @@ public interface WalletService {
     boolean isValidEmail(String email);
 
     WalletRegisteredRequest findByEmailWallet(String email);
+
+    WalletRegisteredRequest findByUsername(String username);
 }

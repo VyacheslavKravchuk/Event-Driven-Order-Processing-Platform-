@@ -17,22 +17,32 @@ import java.util.UUID;
 @Entity
 @Getter
 @Setter
-@ToString
 @NoArgsConstructor
 @Table(name = "wallets")
 public class WalletRegistered {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID) // Для UUID в Spring Boot 3 лучше так
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "wallet_id")
     private UUID walletId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance;
 
-    // Связь 1-к-1: у одного юзера один кошелек
+    @Column(unique = true, nullable = false)
+    private String email;
+
     @OneToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id", unique = true)
+    @ToString.Exclude // Важно: предотвращает StackOverflowError
     private User user;
 
+    @Override
+    public String toString() {
+        return "WalletRegistered{" +
+                "walletId=" + walletId +
+                ", balance=" + balance +
+                ", email='" + email + '\'' +
+                '}';
+    }
 }

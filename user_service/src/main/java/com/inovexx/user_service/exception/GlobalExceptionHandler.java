@@ -245,6 +245,4 @@ public class GlobalExceptionHandler {
         ErrorResponse errorResponse = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Некорректный запрос: Невозможно прочитать сообщение");
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
-
 }
-
