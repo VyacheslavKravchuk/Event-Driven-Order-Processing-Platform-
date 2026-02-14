@@ -65,7 +65,16 @@ public class GatewayConfiguration {
                                 }))
                         .uri("lb://inventory-service"))
 
-                // 5. ORDER SERVICE
+                // 5. PRODUCT SERVICE
+                .route("product_route", r -> r.path("/api/products/**")
+                        .filters(f -> f.filter(authFilter.apply(new JwtAuthenticationFilter.Config()))
+                                .requestRateLimiter(config -> {
+                                    config.setRateLimiter(redisRateLimiter());
+                                    config.setKeyResolver(userKeyResolver());
+                                }))
+                        .uri("lb://product-service"))
+
+                // 6. ORDER SERVICE
                 .route("order_route", r -> r.path("/api/orders/**")
                         .filters(f -> f.filter(authFilter.apply(new JwtAuthenticationFilter.Config()))
                                 .requestRateLimiter(config -> {

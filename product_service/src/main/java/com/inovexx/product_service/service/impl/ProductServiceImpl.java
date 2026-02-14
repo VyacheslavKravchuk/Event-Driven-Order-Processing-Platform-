@@ -1,10 +1,9 @@
 package com.inovexx.product_service.service.impl;
 
+import java.time.Instant;
 import java.util.List;
-
-
-import com.inovexx.product_service.dto.ProductRequest;
-import com.inovexx.product_service.dto.ProductResponse;
+import com.inovexx.product_service.dto.ProductDto;
+import com.inovexx.product_service.dto.ProductEvent;
 import com.inovexx.product_service.exception.ProductNotFoundException;
 import com.inovexx.product_service.mapper.ProductMapper;
 import com.inovexx.product_service.model.Product;
@@ -12,11 +11,10 @@ import com.inovexx.product_service.repository.ProductRepository;
 import com.inovexx.product_service.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
-import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,70 +23,83 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate<String, ProductEvent> kafkaTemplate;
+
+    @Value("${kafka.topic.product-events:product.events}")
+    private String productEventsTopic;
 
     @Override
-    public void createProduct(ProductRequest productRequest) {
-        log.info("Начало создания продукта: {}", productRequest);
-        Product product = Product.builder()
-                .name(productRequest.name())
-                .description(productRequest.description())
-                .price(productRequest.price())
-                .build();
+    @Transactional // Гарантирует атомарность операции в пределах БД
+    public String createProduct(ProductDto productDto) {
+        log.info("Создание продукта: {}", productDto.name());
 
-        productRepository.save(product);
-        log.info("Продукт успешно сохранен с ID: {}", product.getId());
+        Product product = productMapper.productDtoToProduct(productDto);
+        Product savedProduct = productRepository.save(product);
 
-        kafkaTemplate.send("productTopic", "Product created: " + product.getName());
-        log.info("Сообщение отправлено в Kafka для продукта: {}", product.getName());
-    }
+        sendEvent(savedProduct.getId(), "CREATED", savedProduct.getName());
 
-    public List<ProductResponse> getAllProducts() {
-        log.info("Получен запрос на получение всех продуктов.");
-        List<Product> products = productRepository.findAll();
-        List<ProductResponse> productResponses = products.stream().map(productMapper::productToProductDto).collect(Collectors.toList());
-        log.info("Возвращено {} продуктов.", productResponses.size());
-        return productResponses;
-    }
-
-
-
-    @Override
-    public ProductResponse updateProduct(String id, ProductRequest productRequest) {
-        log.info("Начало обновления продукта с ID: {}, данные: {}", id, productRequest);
-        Optional<Product> optionalProduct = productRepository.findById(id);
-
-        if (optionalProduct.isPresent()) {
-            Product product = optionalProduct.get();
-            product.setName(productRequest.name());
-            product.setDescription(productRequest.description());
-            product.setPrice(productRequest.price());
-
-            Product updatedProduct = productRepository.save(product);
-            log.info("Продукт с ID: {} успешно обновлен.", updatedProduct.getId());
-            kafkaTemplate.send("productTopic", "Product updated: "
-                    + updatedProduct.getName());
-            log.info("Сообщение отправлено в Kafka об обновлении продукта: {}",
-                    updatedProduct.getName());
-            return productMapper.productToProductDto(updatedProduct);
-
-        } else {
-            log.warn("Продукт с ID: {} не найден.", id);
-            throw new ProductNotFoundException("Product not found with id: " + id);
-        }
+        return savedProduct.getId();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ProductDto> getAllProducts() {
+        return productRepository.findAll().stream()
+                .map(productMapper::productToProductDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public ProductDto updateProduct(String id, ProductDto productDto) {
+        log.info("Обновление продукта ID: {}", id);
+
+        return productRepository.findById(id)
+                .map(existingProduct -> {
+                    // Обновляем поля через маппер или вручную
+                    existingProduct.setName(productDto.name());
+                    existingProduct.setDescription(productDto.description());
+                    existingProduct.setPrice(productDto.price());
+                    existingProduct.setCategory(productDto.category());
+
+                    Product updated = productRepository.save(existingProduct);
+
+                    sendEvent(id, "UPDATED", updated.getName());
+
+                    return productMapper.productToProductDto(updated);
+                })
+                .orElseThrow(() -> new ProductNotFoundException("Продукт не найден по id: " + id));
+    }
+
+    @Override
+    @Transactional
     public void deleteProduct(String id) {
-        log.info("Начало удаления продукта с ID: {}", id);
-        if (productRepository.existsById(id)) {
-            productRepository.deleteById(id);
-            log.info("Продукт с ID: {} успешно удален.", id);
-            kafkaTemplate.send("productTopic", "Product deleted: " + id);
-            log.info("Сообщение отправлено в Kafka об удалении продукта с ID: {}", id);
-        } else {
-            log.warn("Продукт с ID: {} не найден и не может быть удален.", id);
-            throw new ProductNotFoundException("Product not found with id: " + id);
-        }
+        log.info("Удаление продукта ID: {}", id);
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Продукт не найден по id: " + id));
+
+        productRepository.delete(product);
+
+        sendEvent(id, "DELETED", product.getName());
+    }
+
+    /**
+     * Вспомогательный метод для отправки событий.
+     * Можно добавить .whenComplete() для асинхронной обработки результата отправки.
+     */
+    private void sendEvent(String productId, String type, String name) {
+        ProductEvent event = new ProductEvent(productId, type, name, Instant.now());
+
+        kafkaTemplate.send(productEventsTopic, productId, event)
+                .whenComplete((result, ex) -> {
+                    if (ex == null) {
+                        log.info("Событие {} успешно отправлено в Kafka для ID: {}", type, productId);
+                    } else {
+                        log.error("Ошибка отправки события в Kafka для ID: {}", productId, ex);
+                        // В продакшене тут может быть логика переотправки или отката транзакции
+                    }
+                });
     }
 }
+

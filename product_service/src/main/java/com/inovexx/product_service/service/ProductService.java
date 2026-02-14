@@ -1,18 +1,16 @@
 package com.inovexx.product_service.service;
 
-import com.inovexx.product_service.dto.ProductRequest;
-import com.inovexx.product_service.dto.ProductResponse;
-import com.inovexx.product_service.model.Product;
+import com.inovexx.product_service.dto.ProductDto;
 
 import java.util.List;
 
 public interface ProductService {
 
-    void createProduct(ProductRequest productRequest);
+    String  createProduct(ProductDto productDto);
 
-    List<ProductResponse> getAllProducts();
+    List<ProductDto> getAllProducts();
 
-    ProductResponse updateProduct(String id, ProductRequest productRequest);
+    ProductDto updateProduct(String id, ProductDto productDto);
 
     void deleteProduct(String id);
 }

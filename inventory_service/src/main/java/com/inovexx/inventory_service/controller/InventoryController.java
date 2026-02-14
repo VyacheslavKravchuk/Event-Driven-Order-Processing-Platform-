@@ -2,6 +2,7 @@ package com.inovexx.inventory_service.controller;
 
 import com.inovexx.inventory_service.dto.InventoryDto;
 import com.inovexx.inventory_service.entity.Inventory;
+import com.inovexx.inventory_service.exception.ProductNotFoundException;
 import com.inovexx.inventory_service.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 
 @Tag(name = "Inventory Management", description = "API для управления запасами на складе")
 @RestController
@@ -58,7 +58,7 @@ public class InventoryController {
     @GetMapping("/{productId}")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<InventoryDto> getInventoryById(
-            @Parameter(description = "ID продукта для поиска запаса") @PathVariable Long productId) {
+            @Parameter(description = "ID продукта для поиска запаса") @PathVariable String productId) {
         logger.info("Запрос на получение записи инвентаря по ID продукта: {}", productId);
         return inventoryService.findById(productId)
                 .map(ResponseEntity::ok)
@@ -89,7 +89,7 @@ public class InventoryController {
     @PutMapping("/{productId}")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<InventoryDto> updateInventoryStock(
-            @Parameter(description = "ID продукта") @PathVariable Long productId,
+            @Parameter(description = "ID продукта") @PathVariable String productId,
             @Parameter(description = "Новое количество запасов") @RequestParam int newStock) {
         logger.info("Запрос на обновление запасов для продукта ID: {}, новое количество: {}", productId, newStock);
 
@@ -108,7 +108,7 @@ public class InventoryController {
     @DeleteMapping("/{productId}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteInventory(
-            @Parameter(description = "ID продукта") @PathVariable Long productId) {
+            @Parameter(description = "ID продукта") @PathVariable String productId) {
         logger.info("Запрос на удаление записи инвентаря с ID продукта: {}", productId);
 
         inventoryService.deleteById(productId);

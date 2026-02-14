@@ -4,6 +4,7 @@ import com.inovexx.inventory_service.dto.InventoryDto;
 import com.inovexx.inventory_service.entity.Inventory;
 import com.inovexx.inventory_service.exception.InvalidStockLevelException;
 import com.inovexx.inventory_service.exception.ProductNotFoundException;
+import com.inovexx.inventory_service.mapper.InventoryMapper;
 import com.inovexx.inventory_service.repository.InventoryRepository;
 import com.inovexx.inventory_service.service.InventoryService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryMapper inventoryMapper;
     private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
 
     @Override
@@ -30,7 +32,7 @@ public class InventoryServiceImpl implements InventoryService {
         logger.info("Получение всех записей инвентаря");
         List<InventoryDto> inventoryDtos = inventoryRepository.findAll()
                 .stream()
-                .map(this::toDto)
+                .map(inventoryMapper::inventoryToInventoryDto)
                 .collect(Collectors.toList());
         logger.info("Найдено {} записей инвентаря", inventoryDtos.size());
         return inventoryDtos;
@@ -38,9 +40,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<InventoryDto> findById(Long productId) {
+    public Optional<InventoryDto> findById(String productId) {
         logger.info("Поиск записи инвентаря по ID продукта: {}", productId);
-        return inventoryRepository.findById(productId).map(this::toDto);
+        return inventoryRepository.findByProductId(productId).map(inventoryMapper::inventoryToInventoryDto);
     }
 
     @Transactional
@@ -48,20 +50,20 @@ public class InventoryServiceImpl implements InventoryService {
     public InventoryDto create(InventoryDto inventoryDto) {
         logger.info("Создание новой записи инвентаря: {}", inventoryDto);
 
-        Inventory inventory = toEntity(inventoryDto);
+        Inventory inventory = inventoryMapper.inventoryDtoToInventory(inventoryDto);
         validateInventory(inventory);
 
         Inventory savedInventory = inventoryRepository.save(inventory);
         logger.info("Запись инвентаря успешно создана с ID: {}", savedInventory.getProductId());
-        return toDto(savedInventory);
+        return inventoryMapper.inventoryToInventoryDto(savedInventory);
     }
 
     @Override
     @Transactional
-    public InventoryDto updateStock(Long productId, int newStock) {
+    public InventoryDto updateStock(String productId, int newStock) {
         logger.info("Обновление запасов для продукта ID: {}, новое количество: {}", productId, newStock);
 
-        Inventory existing = inventoryRepository.findById(productId)
+        Inventory existing = inventoryRepository.findByProductId(productId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
 
         validateStockLevel(newStock);
@@ -69,32 +71,32 @@ public class InventoryServiceImpl implements InventoryService {
         Inventory updatedInventory = inventoryRepository.save(existing);
 
         logger.info("Запасы для продукта ID: {} успешно обновлены", productId);
-        return toDto(updatedInventory);
+        return inventoryMapper.inventoryToInventoryDto(updatedInventory);
     }
 
     @Override
     @Transactional
-    public void deleteById(Long productId) {
+    public void deleteById(String productId) {
         logger.info("Удаление записи инвентаря с ID продукта: {}", productId);
-        inventoryRepository.deleteById(productId);
+        inventoryRepository.deleteByProductId(productId);
         logger.info("Запись инвентаря с ID продукта: {} успешно удалена", productId);
     }
 
-    private InventoryDto toDto(Inventory inventory) {
-        return new InventoryDto(
-                inventory.getProductId(),
-                inventory.getAvailableStock(),
-                inventory.getReservedStock()
-        );
-    }
-
-    private Inventory toEntity(InventoryDto dto) {
-        Inventory inventory = new Inventory();
-        inventory.setProductId(dto.productId());
-        inventory.setAvailableStock(dto.availableStock());
-        inventory.setReservedStock(dto.reservedStock());
-        return inventory;
-    }
+//    private InventoryDto toDto(Inventory inventory) {
+//        return new InventoryDto(
+//                inventory.getProductId(),
+//                inventory.getAvailableStock(),
+//                inventory.getReservedStock()
+//        );
+//    }
+//
+//    private Inventory toEntity(InventoryDto dto) {
+//        Inventory inventory = new Inventory();
+//        inventory.setProductId(dto.productId());
+//        inventory.setAvailableStock(dto.availableStock());
+//        inventory.setReservedStock(dto.reservedStock());
+//        return inventory;
+//    }
 
     private void validateInventory(Inventory inventory) {
         if (inventory.getAvailableStock() < 0) {

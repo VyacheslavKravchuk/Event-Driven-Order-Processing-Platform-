@@ -11,13 +11,13 @@ public interface InventoryService {
 
     List<InventoryDto> findAll();
 
-    public Optional<InventoryDto> findById(Long productId);
+    public Optional<InventoryDto> findById(String productId);
 
     @Transactional
     InventoryDto create(InventoryDto inventoryDto);
 
-    InventoryDto updateStock(Long productId, int newStock);
+    InventoryDto updateStock(String productId, int newStock);
 
     @Transactional
-    void deleteById(Long productId);
+    void deleteById(String productId);
 }
