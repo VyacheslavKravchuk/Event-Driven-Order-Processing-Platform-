@@ -35,13 +35,39 @@
 		<net.devh.grpc.version>2.15.0.RELEASE</net.devh.grpc.version>
 		<protobuf.version>3.25.1</protobuf.version>
 		<protoc-jar-maven-plugin.version>3.11.4</protoc-jar-maven-plugin.version>
+		<spring-cloud.version>2025.0.0</spring-cloud.version>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
 
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux</artifactId>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
+
+		<dependency>
+			<groupId>javax.annotation</groupId>
+			<artifactId>javax.annotation-api</artifactId>
+			<version>1.3.2</version>
+		</dependency>
+
+
+		<!--		<dependency>-->
+		<!--			<groupId>org.springframework.boot</groupId>-->
+		<!--			<artifactId>spring-boot-starter-webflux</artifactId>-->
+		<!--		</dependency>-->
 
 		<!-- MapStruct API -->
 		<dependency>
@@ -49,7 +75,6 @@
 			<artifactId>mapstruct</artifactId>
 			<version>${mapstruct.version}</version>
 		</dependency>
-
 		<!-- MapStruct Processor (Нужен для компиляции и генерации бина) -->
 		<dependency>
 			<groupId>org.mapstruct</groupId>
@@ -72,25 +97,23 @@
 			<version>${protobuf.version}</version>
 		</dependency>
 
-		<!-- ИСПРАВЛЕНО: Используем spring-kafka, версия берется из родителя -->
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
-
 		<!-- gRPC Client Spring Boot Starter -->
 		<dependency>
 			<groupId>net.devh</groupId>
 			<artifactId>grpc-spring-boot-starter</artifactId>
 			<version>${net.devh.grpc.version}</version>
 		</dependency>
-
 		<!-- gRPC Core Libraries (API, Protobuf, Stub) -->
 		<dependency>
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-protobuf</artifactId>
 			<version>${grpc.version}</version>
 		</dependency>
+
 		<dependency>
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-stub</artifactId>
@@ -117,6 +140,7 @@
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-web</artifactId>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-config</artifactId>
@@ -137,13 +161,13 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -151,7 +175,6 @@
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- JWT -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
@@ -182,38 +205,42 @@
 			<artifactId>mockito-core</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.assertj</groupId>
 			<artifactId>assertj-core</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- КОНЕЦ ТЕСТОВЫХ ЗАВИСИМОСТЕЙ -->
-
 	</dependencies>
 
 	<build>
@@ -225,50 +252,69 @@
 			</extension>
 		</extensions>
 		<plugins>
-			<!-- Стандартный плагин Spring Boot -->
+			<!-- Сборка исполняемого JAR -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-				<!-- ... (configuration excludes) ... -->
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
 			</plugin>
 
-			<!-- ИСПРАВЛЕННЫЙ ПЛАГИН ДЛЯ ГЕНЕРАЦИИ PROTOBUF -->
+			<!-- Настройка компилятора для связки Lombok + MapStruct -->
 			<plugin>
-				<groupId>com.github.os72</groupId>
-				<artifactId>protoc-jar-maven-plugin</artifactId>
-				<version>${protoc-jar-maven-plugin.version}</version>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.11.0</version>
+				<configuration>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+						<path>
+							<groupId>org.mapstruct</groupId>
+							<artifactId>mapstruct-processor</artifactId>
+							<version>${mapstruct.version}</version>
+						</path>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok-mapstruct-binding</artifactId>
+							<version>0.2.0</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<!-- ПРАВИЛЬНЫЙ ПЛАГИН ДЛЯ ГЕНЕРАЦИИ PROTO И GRPC -->
+			<plugin>
+				<groupId>org.xolstice.maven.plugins</groupId>
+				<artifactId>protobuf-maven-plugin</artifactId>
+				<version>0.6.1</version>
+				<configuration>
+					<protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:windows-x86_64</protocArtifact>
+					<pluginId>grpc-java</pluginId>
+					<pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:windows-x86_64</pluginArtifact>
+				</configuration>
 				<executions>
 					<execution>
-						<phase>generate-sources</phase>
 						<goals>
-							<goal>run</goal>
+							<goal>compile</goal>
+							<goal>compile-custom</goal>
 						</goals>
-						<configuration>
-							<protocVersion>${protobuf.version}</protocVersion>
-							<inputDirectories>
-								<!-- Путь к нашему proto-файлу -->
-								<inputDirectory>src/main/proto</inputDirectory>
-							</inputDirectories>
-							<outputTargets>
-								<!-- Генерация Java классов -->
-								<outputTarget>
-									<type>java</type>
-									<!-- Стандартная папка для генерации Maven -->
-									<outputDirectory>${project.build.directory}/generated-sources/protobuf/java</outputDirectory>
-								</outputTarget>
-								<!-- Генерация gRPC сервисов -->
-								<outputTarget>
-									<type>grpc-java</type>
-									<!-- Стандартная папка для генерации gRPC -->
-									<outputDirectory>${project.build.directory}/generated-sources/protobuf/grpc-java</outputDirectory>
-								</outputTarget>
-							</outputTargets>
-						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 
-			<!-- ПЛАГИН ДЛЯ ДОБАВЛЕНИЯ СГЕНЕРИРОВАННЫХ ИСХОДНИКОВ В CLASSPATH -->
+			<!-- Добавление сгенерированного кода в область видимости IDE -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>build-helper-maven-plugin</artifactId>
@@ -281,6 +327,7 @@
 						</goals>
 						<configuration>
 							<sources>
+								<!-- Стандартные пути для protobuf-maven-plugin -->
 								<source>${project.build.directory}/generated-sources/protobuf/java</source>
 								<source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
 							</sources>
@@ -288,7 +335,7 @@
 					</execution>
 				</executions>
 			</plugin>
-
 		</plugins>
 	</build>
+
 </project>

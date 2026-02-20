@@ -5,7 +5,6 @@ import lombok.*;
 
 import java.math.BigDecimal;
 
-
 @Entity
 @Getter
 @Setter
@@ -19,15 +18,17 @@ public class OrderItem {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @ToString.Exclude
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(name = "inventory_id", nullable = false)
-    private Long inventoryId;
+    @Column(name = "product_id", nullable = false)
+    private String productId;
 
     @Column(nullable = false)
     private int quantity;
 
     @Column(nullable = false)
-    private BigDecimal price; // Цена за единицу товара
+    private BigDecimal price;
+
 }

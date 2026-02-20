@@ -1,12 +1,12 @@
 package com.inovexx.order_service.service.impl;
 
-
-import com.inovexx.order_service.config.WebClientConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.inovexx.order_service.client.InventoryClient;
 import com.inovexx.order_service.dto.*;
 import com.inovexx.order_service.entity.Order;
 import com.inovexx.order_service.entity.OrderItem;
 import com.inovexx.order_service.enums.OrderStatus;
-import com.inovexx.order_service.exception.InvalidStockLevelException;
+import com.inovexx.order_service.events.OutboxEvent;
 import com.inovexx.order_service.exception.ProductNotFoundException;
 import com.inovexx.order_service.mapper.OrderMapper;
 import com.inovexx.order_service.repository.OrderRepository;
@@ -15,11 +15,10 @@ import com.inovexx.order_service.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,9 +30,12 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
+    private final InventoryClient inventoryClient;
+    private final ObjectMapper objectMapper;
+
     private final KafkaProducerService kafkaProducerService;
-    private final WebClientConfig webClientConfig;
-    private final String inventoryServiceUrl = "http://localhost:8084/inventory/";
+    @Value("${kafka.topic.order-events:order.events}")
+    private String orderEventsTopicName;
 
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
@@ -57,53 +59,47 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findById(orderId).map(orderMapper::orderToOrderDto);
     }
 
+    @Override
     @Transactional
     public OrderDto createOrder(OrderDto orderDto) {
+        // 1. Превращаем DTO в сущность Entity
+        Order order = orderMapper.orderDtoToOrder(orderDto);
 
-        logger.info("Начало создания продукта: {}", orderDto);
-
-        List<OrderItem> orderItems = orderDto.orderItems().stream()
-                .map(itemDto -> {
-                    OrderItem orderItem = new OrderItem();
-                    orderItem.setInventoryId(itemDto.getInventoryId());
-                    orderItem.setQuantity(itemDto.getQuantity());
-                    // Получаем цену из product-service
-                    orderItem.setPrice(BigDecimal.ONE); //Вместо 1 нужно получить цену от product-service.
-                    return orderItem;
-                })
-                .collect(Collectors.toList());
-
-        // Рассчитываем общую сумму заказа
-        BigDecimal totalAmount = orderItems.stream()
-                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-
-        // 3. Резервирование запасов (через inventory-service)
-        // Взаимодействие с inventory-service для резервирования запасов
-        List<OrderRequestInInventory> reservationRequests = orderDto.orderItems().stream()
-                .map(item -> new OrderRequestInInventory(item.getInventoryId(), item.getQuantity()))
-                .collect(Collectors.toList());
-
-        // Используем WebClient для отправки POST-запроса в inventory-service
-        Mono<Boolean> inventoryCheck = webClientConfig.webClient()// Используем имя сервиса
-                .post().uri("http://inventory-service/api/product")
-                .bodyValue(reservationRequests)
-                .retrieve()
-                .bodyToMono(Boolean.class); // Ожидаем ответ true/false или другой
-
-        // Создание заказа
-        Order order = new Order();
+        // 2. Устанавливаем начальный статус и сохраняем (чтобы получить orderId)
         order.setStatus(OrderStatus.NEW);
         order.setOrderDate(OffsetDateTime.now());
-        order.setTotalAmount(totalAmount);
-        order.setOrderItems(orderItems);
+
+        // Важно: связываем OrderItem с Order через хелпер (если есть) или вручную
+        order.getOrderItems().forEach(item -> item.setOrder(order));
 
         Order savedOrder = orderRepository.save(order);
 
-        kafkaProducerService.sendMessage("order-created", savedOrder.getOrderId());
+        // 3. Вызываем inventory-service через gRPC для каждого товара
+        boolean allReserved = true;
+        for (OrderItem item : savedOrder.getOrderItems()) {
+            boolean reserved = inventoryClient.reserveStock(item.getProductId(), item.getQuantity());
+            if (!reserved) {
+                allReserved = false;
+                break;
+            }
+        }
 
-        return orderMapper.orderToOrderDto(order);
+        // 4. Финализируем статус
+        if (allReserved) {
+            savedOrder.setStatus(OrderStatus.RESERVED);
+        } else {
+            savedOrder.setStatus(OrderStatus.CANCELLED);
+        }
+
+     // 2. СОХРАНЕНИЕ В OUTBOX (в той же транзакции!)
+        OutboxEvent event = new OutboxEvent();
+        event.setOrderId(savedOrder.getOrderId().toString());
+        event.setEventType("ORDER_CREATED");
+        event.setPayload(objectMapper.writeValueAsString(resultDto)); // Превращаем в JSON
+        outboxRepository.save(event);
+
+        // Возвращаем результат обратно в виде DTO
+        return orderMapper.orderToOrderDto(orderRepository.save(savedOrder));
     }
 
     @Override
@@ -119,10 +115,12 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(newStatus);
         Order updatedOrder = orderRepository.save(order);
 
-        // Отправка сообщения в Kafka об изменении статуса
-        kafkaProducerService.sendMessage("order-status-updates",  updatedOrder.getOrderId());
+        OrderDto orderDto = orderMapper.orderToOrderDto(updatedOrder);
 
-        return orderMapper.orderToOrderDto(updatedOrder);
+        // Это позволит notification-service отправить письмо "Ваш заказ оплачен"
+        kafkaProducerService.sendMessage(orderEventsTopicName, orderDto);
+
+        return orderDto;
     }
 
     private void validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
@@ -144,8 +142,14 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void deleteOrderById(Long orderId) {
-        logger.info("Удаление записи заказа с ID: {}", orderId);
-        orderRepository.deleteById(orderId);
-        logger.info("Запись заказа с ID: {} успешно удалена", orderId);
+        // Сначала ищем, чтобы было что отправить в уведомлении
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ProductNotFoundException("Заказ не найден"));
+        OrderDto deletedOrderDto = orderMapper.orderToOrderDto(order);
+
+        orderRepository.delete(order);
+
+        // Отправляем событие удаления
+        kafkaProducerService.sendMessage(orderEventsTopicName, deletedOrderDto);
     }
 }

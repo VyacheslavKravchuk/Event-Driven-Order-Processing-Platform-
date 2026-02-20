@@ -4,12 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.inovexx.order_service.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.proxy.HibernateProxy;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 @Entity
 @Getter
@@ -24,7 +22,7 @@ public class Order {
     private Long orderId;
 
     @Column(nullable = false)
-    private Long userId; // Идентификатор клиента
+    private Long userId;
 
     @Column(nullable = false)
     private BigDecimal totalAmount;
@@ -35,12 +33,38 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
     private List<OrderItem> orderItems;
 
     @Version
     @JsonIgnore
     @Column(name = "version")
     private Long version;
+
+    public void addOrderItem(OrderItem item) {
+        if (item == null) {
+            throw new IllegalArgumentException("OrderItem cannot be null");
+        }
+
+        if (this.orderItems == null) {
+            this.orderItems = new ArrayList<>();
+        }
+
+        // Устанавливаем двустороннюю связь
+        this.orderItems.add(item);
+        item.setOrder(this);
+
+        // Автоматический пересчет суммы заказа
+        recalculateTotal();
+    }
+
+    private void recalculateTotal() {
+        this.totalAmount = orderItems.stream()
+                .filter(item -> item.getPrice() != null)
+                .map(item -> item.getPrice().multiply(BigDecimal
+                        .valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
 }
