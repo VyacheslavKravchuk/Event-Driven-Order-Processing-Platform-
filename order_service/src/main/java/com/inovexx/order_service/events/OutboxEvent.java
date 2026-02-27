@@ -24,6 +24,10 @@ public class OutboxEvent {
     private String payload;      // JSON данные заказа
 
     private LocalDateTime createdAt = LocalDateTime.now();
+
     private boolean processed = false; // Статус отправки
+
+    private Integer retryCount = 0;
+    private LocalDateTime nextAttemptAt = LocalDateTime.now();
 }
 

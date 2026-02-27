@@ -20,17 +20,19 @@ public class UserEventConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "user-events", groupId = "user-profile-group")
+    @KafkaListener(topics = "user.created", groupId = "user-profile-group")
     public void consumeUserRegistrationEvent(String message) {
         try {
             User user = objectMapper.readValue(message, User.class);
 
-            if (!userRepository.existsById(user.getUserId())) {
+            logger.info("Десериализованный пользователь ID: {}", user.getId());
+
+            if (!userRepository.existsById(user.getId())) {
                 userRepository.save(user);
-                System.out.println("Создан новый профиль пользователя с ID: " + user.getUserId());
-                logger.info("Создан новый профиль пользователя с ID: {}", user.getUserId());
+                System.out.println("Создан новый профиль пользователя с ID: " + user.getId());
+                logger.info("Создан новый профиль пользователя с ID: {}", user.getId());
             } else {
-                logger.error("Профиль пользователя с ID {} уже существует.", user.getUserId());
+                logger.error("Профиль пользователя с ID {} уже существует.", user.getId());
             }
         } catch (Exception e) {
             logger.error("Ошибка при обработке сообщения из Kafka: {}", message, e);

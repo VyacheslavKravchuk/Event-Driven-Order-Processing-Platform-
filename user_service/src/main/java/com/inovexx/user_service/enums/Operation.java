@@ -7,9 +7,10 @@ public enum Operation {
     /**
      *  operationType: DEPOSIT or WITHDRAW
      */
+
+    PAYMENT,
     DEPOSIT,
     WITHDRAW;
-
 
     @Nullable
     public static Operation parse (String operation) {

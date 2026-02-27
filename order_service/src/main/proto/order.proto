@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.inovexx.order_service.grpc";
+
+service OrderInternalService {
+  // Получить информацию о заказе (например, для уведомлений или склада)
+  rpc GetOrder (OrderRequest) returns (OrderResponse);
+}
+
+message OrderRequest {
+  int64 order_id = 1;
+}
+
+message OrderResponse {
+  int64 order_id = 1;
+  string status = 2;
+  int64 user_id = 3;
+  double total_amount = 4;
+}

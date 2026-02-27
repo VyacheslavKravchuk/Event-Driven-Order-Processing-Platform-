@@ -14,6 +14,9 @@ import java.util.UUID;
 @Repository
 public interface WalletRepository extends JpaRepository<WalletRegistered, UUID> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<WalletRegistered> findByUserId(Long userId);
+
     // Для обычного поиска (регистрация, логин)
     Optional<WalletRegistered> findByEmail(String email);
 
@@ -26,4 +29,5 @@ public interface WalletRepository extends JpaRepository<WalletRegistered, UUID> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM WalletRegistered w WHERE w.email = :email")
     Optional<WalletRegistered> findByEmailForUpdate(@Param("email") String email);
+
 }

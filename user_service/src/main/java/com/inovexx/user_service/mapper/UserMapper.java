@@ -1,7 +1,7 @@
 package com.inovexx.user_service.mapper;
 
-import com.inovexx.user_service.entity.User;
 import com.inovexx.user_service.dto.UserDto;
+import com.inovexx.user_service.entity.User;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;

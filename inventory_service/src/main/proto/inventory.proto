@@ -1,49 +1,19 @@
 syntax = "proto3";
 
-option java_package = "com.inovexx.inventory_service";
+option java_multiple_files = true;
 
-// Определение сервиса инвентаризации
+option java_package = "com.inovexx.inventory_service.grpc";
+
 service InventoryService {
-  // Метод для получения текущего запаса по ID продукта
-  rpc GetStockQuantity (StockRequest) returns (StockResponse);
-
-  // Метод для резервирования товара
-  rpc ReserveItems (ReserveRequest) returns (ReserveResponse);
-
-  // Метод для освобождения резерва (если заказ отменен)
-  rpc ReleaseReservation (ReleaseRequest) returns (ReleaseResponse);
-}
-
-// Сообщения (структуры данных)
-message StockRequest {
-  int64 productId = 1;
-}
-
-message StockResponse {
-  int64 productId = 1;
-  int32 quantityAvailable = 2;
-  bool isAvailable = 3;
+  rpc ReserveStock (ReserveRequest) returns (ReserveResponse);
 }
 
 message ReserveRequest {
-  int64 productId = 1;
-  int32 quantityToReserve = 2;
-  string orderId = 3; // Идентификатор заказа, который делает резерв
+  string product_id = 1;
+  int32 quantity = 2;
 }
 
 message ReserveResponse {
-  int64 productId = 1;
-  bool success = 2;
-  string message = 3; // Например, "Insufficient stock"
-}
-
-message ReleaseRequest {
-  int64 productId = 1;
-  string orderId = 2;
-}
-
-message ReleaseResponse {
-  int64 productId = 1;
-  bool success = 2;
-  string message = 3;
+  bool success = 1;
+  string message = 2;
 }

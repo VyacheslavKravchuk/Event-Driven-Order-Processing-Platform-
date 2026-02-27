@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 
 public record WalletRegisteredRequest (
 
-     String email,
+        String email,
 
-     BigDecimal balance
+        BigDecimal balance
 
 ) {}

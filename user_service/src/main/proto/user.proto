@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package user;
+
+option java_multiple_files = true;
+option java_package = "com.inovexx.order_service.grpc";
+option java_outer_classname = "UserProto";
+
+// Сервис кошелька
+service UserService {
+  rpc DeductBalance (PaymentRequest) returns (PaymentResponse);
+  rpc RefundBalance (PaymentRequest) returns (PaymentResponse);
+}
+
+message PaymentRequest {
+  int64 user_id = 1;
+  double amount = 2;
+  int64 order_id = 3;
+}
+
+message PaymentResponse {
+  bool success = 1;
+  string transaction_id = 2;
+  string message = 3;
+}

@@ -1,5 +1,6 @@
 package com.inovexx.order_service.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.inovexx.order_service.dto.OrderDto;
 import com.inovexx.order_service.enums.OrderStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +15,10 @@ public interface OrderService {
     public Optional<OrderDto> findById(Long productId);
 
     @Transactional
-    OrderDto createOrder(OrderDto orderDto);
+    OrderDto createOrder(OrderDto orderDto) throws JsonProcessingException;
 
-    OrderDto updateOrderStatus(Long id, OrderStatus newStatus);
+    OrderDto updateOrderStatus(Long id, OrderStatus newStatus) throws JsonProcessingException;
 
     @Transactional
-    void deleteOrderById(Long productId);
+    void deleteOrderById(Long productId) throws JsonProcessingException;
 }

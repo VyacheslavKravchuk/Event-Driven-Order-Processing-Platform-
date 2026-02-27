@@ -40,11 +40,11 @@ public class ProductEventListener {
     }
 
     private void deleteInventoryEntry(String productId) {
+        // Находим запись по product_id и удаляем
         inventoryRepository.findByProductId(productId)
                 .ifPresent(inventory -> {
                     inventoryRepository.delete(inventory);
                     log.info("Deleted inventory record for product: {}", productId);
                 });
     }
-
 }

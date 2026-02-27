@@ -16,41 +16,36 @@ import java.util.function.Function;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret-key}")
-    private String secretKey;
+    @Value("${spring.security.jwt.secret}")
+    private String secretString;
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(JwtTokenProvider.class);
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
-    // Метод для получения ключа подписи из Base64 строки
+    // В 0.12.x рекомендуется использовать SecretKey напрямую
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        byte[] keyBytes = Decoders.BASE64.decode(secretString);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
     // --- Методы для парсинга и валидации ---
 
-    // Метод для извлечения всех данных (Claims) из токена
     public Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder() // Получаем Builder
-                .setSigningKey(getSigningKey()) // Устанавливаем ключ подписи
-                .build() // Собираем парсер
-                .parseClaimsJws(token) // Парсим токен
-                .getBody(); // Получаем тело (Claims)
+        return Jwts.parser() // Теперь просто .parser() вместо .parserBuilder()
+                .verifyWith(getSigningKey()) // verifyWith() вместо setSigningKey()
+                .build()
+                .parseSignedClaims(token) // parseSignedClaims() вместо parseClaimsJws()
+                .getPayload(); // getPayload() вместо getBody()
     }
 
-    // Извлечение имени пользователя (Subject)
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
-    // Универсальный метод извлечения конкретного клейма
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
-    // Проверка срока действия
     public boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
@@ -59,27 +54,25 @@ public class JwtTokenProvider {
         return extractClaim(token, Claims::getExpiration);
     }
 
-    // Метод валидации токена с обработкой исключений
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey())
-                    .build().parseClaimsJws(token);
+            Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token);
             return true;
         } catch (SignatureException e) {
             logger.error("Неверная JWT подпись: {}", e.getMessage());
-            return false; // Важно возвращать false при невалидном токене
         } catch (MalformedJwtException e) {
             logger.error("Некорректный JWT формат: {}", e.getMessage());
-            return false;
         } catch (ExpiredJwtException e) {
-            logger.warn("Срок действия JWT истек: {}", e.getMessage()); // Используем warn, так как это ожидаемое поведение
-            return false;
+            logger.warn("Срок действия JWT истек: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
             logger.error("JWT не поддерживается: {}", e.getMessage());
-            return false;
         } catch (IllegalArgumentException e) {
             logger.error("JWT строка пуста: {}", e.getMessage());
-            return false;
         }
+        return false;
     }
 }
+

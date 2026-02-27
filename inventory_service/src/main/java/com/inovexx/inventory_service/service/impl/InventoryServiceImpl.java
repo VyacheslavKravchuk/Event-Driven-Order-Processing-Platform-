@@ -8,11 +8,10 @@ import com.inovexx.inventory_service.mapper.InventoryMapper;
 import com.inovexx.inventory_service.repository.InventoryRepository;
 import com.inovexx.inventory_service.service.InventoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -81,22 +80,6 @@ public class InventoryServiceImpl implements InventoryService {
         inventoryRepository.deleteByProductId(productId);
         logger.info("Запись инвентаря с ID продукта: {} успешно удалена", productId);
     }
-
-//    private InventoryDto toDto(Inventory inventory) {
-//        return new InventoryDto(
-//                inventory.getProductId(),
-//                inventory.getAvailableStock(),
-//                inventory.getReservedStock()
-//        );
-//    }
-//
-//    private Inventory toEntity(InventoryDto dto) {
-//        Inventory inventory = new Inventory();
-//        inventory.setProductId(dto.productId());
-//        inventory.setAvailableStock(dto.availableStock());
-//        inventory.setReservedStock(dto.reservedStock());
-//        return inventory;
-//    }
 
     private void validateInventory(Inventory inventory) {
         if (inventory.getAvailableStock() < 0) {

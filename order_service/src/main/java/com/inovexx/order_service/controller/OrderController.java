@@ -1,5 +1,6 @@
 package com.inovexx.order_service.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.inovexx.order_service.dto.OrderDto;
 import com.inovexx.order_service.enums.OrderStatus;
 import com.inovexx.order_service.service.OrderService;
@@ -12,8 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,93 +24,66 @@ import java.util.List;
 
 @Tag(name = "Order Management", description = "API для управления заказами")
 @RestController
-@RequestMapping("/api/order")
+@RequestMapping("/api/orders")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
+@Slf4j
 public class OrderController {
 
-
     private final OrderService orderService;
-    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
-
-
 
     @Operation(summary = "Получить список всех заказов")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Список успешно получен",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OrderDto.class))),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав (ROLE_MANAGER/ADMIN)")
+            @ApiResponse(responseCode = "200", description = "Список успешно получен"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав")
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
-    public ResponseEntity<List<OrderDto>> getAllOrder() {
-        logger.info("Запрос на получение всех записей заказов");
-        List<OrderDto> orderDtos = orderService.findAll();
-        logger.info("Получено {} записей инвентаря", orderDtos.size());
-        return ResponseEntity.ok(orderDtos);
+    public ResponseEntity<List<OrderDto>> getAllOrders() {
+        log.info("Запрос на получение всех заказов");
+        return ResponseEntity.ok(orderService.findAll());
     }
 
-    @Operation(summary = "Получить запись инвентаря по ID продукта")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Запись найдена"),
-            @ApiResponse(responseCode = "404", description = "Запись не найдена"),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав (ROLE_MANAGER/ADMIN)")
-    })
+    @Operation(summary = "Получить заказ по ID")
     @GetMapping("/{orderId}")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<OrderDto> getOrderById(
-            @Parameter(description = "ID продукта для поиска запаса") @PathVariable Long orderId) {
-        logger.info("Запрос на получение записи заказа по ID: {}", orderId);
+            @Parameter(description = "ID заказа") @PathVariable Long orderId) {
+        log.info("Запрос на получение заказа по ID: {}", orderId);
         return orderService.findById(orderId)
                 .map(ResponseEntity::ok)
                 .orElseGet(ResponseEntity.notFound()::build);
     }
 
-    @Operation(summary = "Создать новую запись инвентаря (только Администратор)")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Запись успешно создана"),
-            @ApiResponse(responseCode = "400", description = "Некорректный запрос"),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав (ROLE_ADMIN)")
-    })
+    @Operation(summary = "Создать новый заказ")
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<OrderDto> createOrder(@RequestBody OrderDto orderDto) {
-        logger.info("Запрос на создание нового заказа: {}", orderDto);
+    @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_ADMIN')") // Обычно USER тоже может создавать заказы
+    public ResponseEntity<OrderDto> createOrder(@RequestBody OrderDto orderDto) throws JsonProcessingException {
+        log.info("Запрос на создание нового заказа для пользователя: {}", orderDto.userId());
         OrderDto createdOrder = orderService.createOrder(orderDto);
-        logger.info("Заказ создан для клиента с ID: {}", createdOrder.customerId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdOrder);
     }
 
+    @SneakyThrows
     @Operation(summary = "Обновить статус заказа")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Статус успешно обновлен"),
-            @ApiResponse(responseCode = "404", description = "Продукт не найден"),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав (ROLE_MANAGER/ADMIN)")
-    })
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<OrderDto> updateOrderStatus(
             @PathVariable Long id,
-            @RequestParam OrderStatus newStatus) {
-
-        OrderDto updatedDto =  orderService.updateOrderStatus(id, newStatus);
-        return ResponseEntity.ok(updatedDto);
+            @RequestParam OrderStatus newStatus) { // Убрал лишний throws, если сервис его не кидает
+        log.info("Обновление статуса заказа {} на {}", id, newStatus);
+        return ResponseEntity.ok(orderService.updateOrderStatus(id, newStatus));
     }
 
-    @Operation(summary = "Удалить запись заказа (только Администратор)")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "Заказ успешно удален"),
-            @ApiResponse(responseCode = "404", description = "Запись не найдена"),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав (ROLE_ADMIN)")
-    })
-    @DeleteMapping("/{orderId/cancel}")
+    @SneakyThrows
+    @Operation(summary = "Удалить/Отменить заказ")
+    @DeleteMapping("/{orderId}") // Исправлена опечатка в пути {orderId/cancel} -> {orderId}
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteOrder(
-            @Parameter(description = "ID продукта") @RequestParam Long orderId) {
-        logger.info("Запрос на удаление записи заказа с ID: {}", orderId);
-
+            @PathVariable Long orderId) { // Исправлено: @PathVariable вместо @RequestParam для соответствия пути
+        log.info("Запрос на удаление заказа с ID: {}", orderId);
         orderService.deleteOrderById(orderId);
-        logger.info("Запись заказа с ID: {} успешно удалена", orderId);
         return ResponseEntity.noContent().build();
-
     }
 }
+

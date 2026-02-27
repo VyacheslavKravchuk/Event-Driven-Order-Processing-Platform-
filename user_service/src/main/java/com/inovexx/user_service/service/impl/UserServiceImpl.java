@@ -2,8 +2,8 @@ package com.inovexx.user_service.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.inovexx.user_service.dto.UserDto;
 import com.inovexx.user_service.entity.User;
-import com.inovexx.user_service.entity.UserDto;
 import com.inovexx.user_service.exception.UserAlreadyExistsException;
 import com.inovexx.user_service.exception.UserNotFoundException;
 import com.inovexx.user_service.mapper.UserMapper;
@@ -11,16 +11,15 @@ import com.inovexx.user_service.repository.UserRepository;
 import com.inovexx.user_service.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
 import java.util.stream.Collectors;
-
-import org.springframework.kafka.KafkaException;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +35,9 @@ public class UserServiceImpl implements UserService {
     private final ObjectMapper objectMapper;
 
     private final KafkaTemplate<String, String> kafkaTemplate;
+
+    @Value("${kafka.topic.user-events:user.events}")
+    private String userEventsTopicName;
 
 
     @Override
@@ -93,7 +95,7 @@ public class UserServiceImpl implements UserService {
         // Отправка события в Kafka
         // Лучше отправлять полную информацию, а не просто строку
         String userJson = objectMapper.writeValueAsString(user);
-        kafkaTemplate.send("user-events", user.getId().toString(), userJson); // Используем правильный топик
+        kafkaTemplate.send(userEventsTopicName, user.getId().toString(), userJson); // Используем правильный топик
 
         logger.info("Сообщение отправлено в Kafka об обновлении пользователя: {}", user.getUsername());
 
