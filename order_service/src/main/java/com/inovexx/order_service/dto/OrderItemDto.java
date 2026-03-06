@@ -9,7 +9,7 @@ import java.math.BigDecimal;
  * DTO for {@link OrderItem}
  */
 public record OrderItemDto(
-        @NotNull Long productId,
+        @NotNull String productId,
         @NotNull Integer quantity,
         @NotNull BigDecimal price
 ) {}

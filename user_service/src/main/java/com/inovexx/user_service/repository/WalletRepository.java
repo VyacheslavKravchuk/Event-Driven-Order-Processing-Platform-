@@ -20,14 +20,13 @@ public interface WalletRepository extends JpaRepository<WalletRegistered, UUID> 
     // Для обычного поиска (регистрация, логин)
     Optional<WalletRegistered> findByEmail(String email);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE) // Блокирует строку до конца транзакции
+    @Query("SELECT w FROM WalletRegistered w WHERE w.walletId = :id")
+    Optional<WalletRegistered> findByIdWithLock(UUID id);
+
     // Специальный метод для сервиса транзакций (ввод/вывод денег)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM WalletRegistered w WHERE w.walletId = :id")
     Optional<WalletRegistered> findByIdForUpdate(@Param("id") UUID id);
-
-    // Если нужно заблокировать по email (например, при пополнении по email)
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT w FROM WalletRegistered w WHERE w.email = :email")
-    Optional<WalletRegistered> findByEmailForUpdate(@Param("email") String email);
 
 }

@@ -1,34 +1,53 @@
 syntax = "proto3";
 
+// Генерировать отдельные Java-файлы для сообщений и сервиса
 option java_multiple_files = true;
+// Пакет, в котором будет лежать сгенерированный код
+option java_package = "com.inovexx.inventory_service.grpc";
 
-option java_package = "com.inovexx.order_service.grpc";
-
-// 1. Описание сервиса
+/**
+ * Сервис управления складскими запасами.
+ * Обеспечивает атомарное резервирование и отмену брони для Саги заказов.
+ */
 service InventoryService {
+
+  // Шаг 1: Зарезервировать товар на складе
   rpc ReserveStock (ReserveRequest) returns (ReserveResponse);
 
-  // Метод для отката (компенсации)
+  // Шаг 2 (Откат): Отменить ранее созданный резерв, если заказ не был оплачен
   rpc CancelReservation (CancelReserveRequest) returns (CancelReserveResponse);
 }
 
-// 2. Описание сообщений для ReserveStock
+/**
+ * Запрос на резервирование товара.
+ */
 message ReserveRequest {
-  string product_id = 1;
-  int32 quantity = 2;
+  string product_id = 1; // Артикул или UUID товара
+  int32 quantity = 2;    // Количество для брони
+  int64 order_id = 3;    // ID заказа для связи операций в логах
 }
 
+/**
+ * Ответ на попытку резервирования.
+ */
 message ReserveResponse {
-  bool success = 1;
-  string message = 2;
+  bool success = 1;      // true, если товар успешно заблокирован
+  string message = 2;    // Описание (например, "Недостаточно на складе")
 }
 
-// 3. Описание сообщений для CancelReservation (ОТСЮДА БЫЛА ОШИБКА)
+/**
+ * Запрос на отмену резерва (возврат товара в свободную продажу).
+ */
 message CancelReserveRequest {
   string product_id = 1;
   int32 quantity = 2;
+  int64 order_id = 3;    // Обязательно передаем ID заказа для трассировки отмены
 }
 
+/**
+ * Результат отмены резерва.
+ */
 message CancelReserveResponse {
-  bool success = 1;
+  bool success = 1;      // true, если резерв успешно снят
+  string message = 2;    // Информационное сообщение
 }

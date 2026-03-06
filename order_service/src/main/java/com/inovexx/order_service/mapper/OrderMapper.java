@@ -14,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface OrderMapper {
 
-
     OrderDto orderToOrderDto(Order order);
 
     Order orderDtoToOrder(OrderDto orderDto);

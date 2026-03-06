@@ -4,9 +4,9 @@
 CREATE TABLE IF NOT EXISTS orders (
     order_id     BIGSERIAL PRIMARY KEY,
     user_id      BIGINT NOT NULL,
-    total_amount NUMERIC(19, 2) NOT NULL, -- Рекомендую точность для денег
+    total_amount NUMERIC(19, 2) NOT NULL, -- точность для денег
     order_date   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    status       VARCHAR(50) NOT NULL, -- Сократил длину, добавил NOT NULL
+    status       VARCHAR(50) NOT NULL,
     version      BIGINT DEFAULT 0,     -- Для Optimistic Locking в JPA
     CONSTRAINT check_status CHECK (status IN ('NEW', 'RESERVED', 'PAID', 'SHIPPED', 'COMPLETED', 'CANCELLED'))
 );
@@ -29,5 +29,3 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 
 -- Индекс для внешнего ключа (ускоряет JOIN при получении состава заказа)
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-
-

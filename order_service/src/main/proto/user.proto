@@ -2,24 +2,48 @@ syntax = "proto3";
 
 package user;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.inovexx.order_service.grpc";
 option java_outer_classname = "UserProto";
 
-// Сервис кошелька
+// Сервис кошелька (улучшенная версия с проверкой баланса, точными типами для денег,
+// валютой, timestamp и новым балансом в ответе)
 service UserService {
+  // Получить текущий баланс пользователя
+  rpc GetBalance (BalanceRequest) returns (BalanceResponse);
+
+  // Списать средства с баланса (для оплаты заказа)
   rpc DeductBalance (PaymentRequest) returns (PaymentResponse);
+
+  // Вернуть средства на баланс (рефанд)
   rpc RefundBalance (PaymentRequest) returns (PaymentResponse);
+}
+
+message BalanceRequest {
+  int64 user_id = 1;
+}
+
+message BalanceResponse {
+  string balance = 1;      // Текущий баланс, строка для точности (e.g. "100.50")
+  string currency = 2;     // Валюта (e.g. "USD", "RUB")
+  google.protobuf.Timestamp updated_at = 3;
 }
 
 message PaymentRequest {
   int64 user_id = 1;
-  double amount = 2;
-  int64 order_id = 3;
+  string amount = 2;       // Сумма, строка для точности (e.g. "10.00")
+  string currency = 3;     // Валюта (e.g. "USD")
+  int64 order_id = 4;
+  google.protobuf.Timestamp created_at = 5;  // Время запроса
 }
 
 message PaymentResponse {
   bool success = 1;
-  string transaction_id = 2;
-  string message = 3;
+  string transaction_id = 2;  // ID транзакции (UUID или подобное)
+  string message = 3;         // Описание результата (при ошибке)
+  string new_balance = 4;     // Новый баланс после операции (e.g. "90.50")
+  string currency = 5;        // Валюта баланса
+  google.protobuf.Timestamp processed_at = 6;
 }

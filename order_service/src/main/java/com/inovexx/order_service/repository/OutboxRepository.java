@@ -2,39 +2,50 @@ package com.inovexx.order_service.repository;
 
 import com.inovexx.order_service.events.OutboxEvent;
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
+import jakarta.persistence.QueryHint;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface OutboxRepository extends JpaRepository<OutboxEvent, Long> {
-
-    /**
-     * Стандартный поиск для простых сценариев.
-     */
-    List<OutboxEvent> findByProcessedFalseAndNextAttemptAtBefore(LocalDateTime time);
 
     /**
      * Безопасный выбор для планировщика (LockModeType.PESSIMISTIC_WRITE):
      * Блокирует строки в БД (SELECT ... FOR UPDATE), чтобы если у вас запущено
      * несколько экземпляров order-service, они не обрабатывали одни и те же события.
      */
+    @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2")})
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM OutboxEvent e WHERE e.processed = false AND e.nextAttemptAt <= :now")
-    List<OutboxEvent> findReadyForRetry(@Param("now") LocalDateTime now);
+    List<OutboxEvent> findReadyForRetry(@Param("now") OffsetDateTime now);
 
-    /**
-     * Находит все события, которые еще не были отправлены (без учета времени).
-     */
-    List<OutboxEvent> findByProcessedFalse();
-
-    /**
-     * Удаление старых, уже обработанных событий для очистки БД.
-     */
+    //  Добавляем @Modifying и @Transactional (для удаления)
+    @Modifying
+    @Transactional
     void deleteByProcessedTrue();
+    // Упрощаем - Spring сам поймет этот метод по имени, @Query не нужен
+    long countByProcessedFalse();
+
+    // Исправляем метод для пачек (Batch)
+    // Убираем ORDER BY из основного запроса, если используете Pageable (сортировку лучше передавать в Pageable)
+    // Но если оставляем в @Query, убедимся, что в Pageable сортировка пустая.
+    @Query("SELECT e FROM OutboxEvent e WHERE e.processed = false AND e.nextAttemptAt <= :now")
+    List<OutboxEvent> findEventsToProcess(@Param("now") OffsetDateTime now, Pageable pageable);
+
+    //  Пессимистичная блокировка (убираем хинт -2 для теста стабильности)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM OutboxEvent e WHERE e.id = :id AND e.processed = false")
+    Optional<OutboxEvent> findByIdForProcessing(@Param("id") Long id);
+
+    @Modifying
+    @Transactional
+    void deleteByProcessedTrueAndCreatedAtBefore(OffsetDateTime threshold);
+
 }

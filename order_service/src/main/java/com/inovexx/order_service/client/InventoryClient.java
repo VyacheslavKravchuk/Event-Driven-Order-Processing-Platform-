@@ -1,10 +1,10 @@
 package com.inovexx.order_service.client;
 
+import com.inovexx.inventory_service.grpc.CancelReserveRequest;
+import com.inovexx.inventory_service.grpc.InventoryServiceGrpc;
+import com.inovexx.inventory_service.grpc.ReserveRequest;
+import com.inovexx.inventory_service.grpc.ReserveResponse;
 import com.inovexx.order_service.exception.ProductNotFoundException;
-import com.inovexx.order_service.grpc.CancelReserveRequest;
-import com.inovexx.order_service.grpc.InventoryServiceGrpc;
-import com.inovexx.order_service.grpc.ReserveRequest;
-import com.inovexx.order_service.grpc.ReserveResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -47,11 +47,12 @@ public class InventoryClient {
         return false;
     }
 
-    public void compensateReservation(String productId, int quantity) {
+    public void compensateReservation(String productId, int quantity, Long orderId) {
         try {
             CancelReserveRequest request = CancelReserveRequest.newBuilder()
                     .setProductId(productId)
                     .setQuantity(quantity)
+                    .setOrderId(orderId)
                     .build();
             inventoryStub.cancelReservation(request);
         } catch (Exception e) {

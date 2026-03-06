@@ -1,12 +1,13 @@
 package com.inovexx.user_service.service.impl;
 
+import com.inovexx.user_service.dto.WalletOperationRequest;
 import com.inovexx.user_service.dto.WalletRequestDto;
 import com.inovexx.user_service.entity.wallet.WalletRegistered;
-import com.inovexx.user_service.entity.wallet.WalletRequest;
+import com.inovexx.user_service.entity.wallet.WalletTransaction;
 import com.inovexx.user_service.enums.Operation;
 import com.inovexx.user_service.exception.IllegalArgumentWalletException;
+import com.inovexx.user_service.exception.InsufficientFundsException;
 import com.inovexx.user_service.exception.WalletRegisteredNotFoundException;
-import com.inovexx.user_service.exception.WalletRequestNotFoundException;
 import com.inovexx.user_service.mapper.WalletRequestMapper;
 import com.inovexx.user_service.repository.WalletRepository;
 import com.inovexx.user_service.repository.WalletRequestRepository;
@@ -14,10 +15,10 @@ import com.inovexx.user_service.service.WalletRequestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -27,77 +28,105 @@ public class WalletRequestServiceImpl implements WalletRequestService {
 
     private final WalletRepository walletRepository;
     private final WalletRequestRepository walletRequestRepository;
-    private final WalletRequestMapper walletRequestMapper; // Внедряем маппер
+    private final WalletRequestMapper walletTransactionMapper;
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    /**
+     * Метод для простых операций (DEPOSIT/WITHDRAW) через API.
+     */
+    @Transactional
     @Override
-    public WalletRequestDto operationInputAndOutput(String walletId, WalletRequestDto walletRequestDto) {
+    public WalletOperationRequest operationInputAndOutput(String walletIdStr,
+                                                          WalletOperationRequest requestDto) {
+        // 1. Валидация UUID
+        UUID walletId = parseUuid(walletIdStr);
 
-        // 1. Валидация входных данных
-        if (walletRequestDto == null) {
-            log.warn("Получен пустой запрос на транзакцию");
-            throw new WalletRequestNotFoundException("Запрос отсутствует");
-        }
+        // 2. Поиск кошелька
+        WalletRegistered wallet = findWalletOrThrow(walletId);
 
-        UUID uuid;
-        try {
-            uuid = UUID.fromString(walletId);
-        } catch (IllegalArgumentException e) {
-            log.warn("Невалидный формат UUID: {}", walletId);
-            throw new IllegalArgumentWalletException("Невалидный идентификатор кошелька");
-        }
+        // 3. Бизнес-логика изменения баланса
+        updateBalance(wallet, requestDto.amount(), requestDto.operationType());
 
-        WalletRegistered walletRegistered = walletRepository.findById(uuid)
-                .orElseThrow(() -> {
-                    log.warn("Кошелек не найден с ID: {}", walletId);
-                    return new WalletRegisteredNotFoundException("Кошелек с идентификатором " + walletId + " не найден");
-                });
+        // 4. Маппинг и сохранение транзакции
+        WalletTransaction transaction = walletTransactionMapper.fromOperationDtoToEntity(requestDto);
+        transaction.setWallet(wallet); // Привязываем кошелек
 
-        // 2. Логика изменения баланса
-        updateBalance(walletRegistered, walletRequestDto);
+        WalletTransaction saved = walletRequestRepository.save(transaction);
+        log.info("Операция {} на сумму {} для кошелька {} успешно выполнена",
+                requestDto.operationType(), requestDto.amount(), walletId);
 
-        // 3. Сохранение транзакции и маппинг
-        // Используем маппер для создания сущности из DTO
-        WalletRequest transactionLog = walletRequestMapper.toEntity(walletRequestDto);
-
-        // Устанавливаем связь с кошельком вручную, так как это бизнес-логика
-        transactionLog.setWallet(walletRegistered);
-
-        WalletRequest savedTransaction = walletRequestRepository.save(transactionLog);
-
-        log.info("Транзакция {} сохранена для кошелька {}", savedTransaction.getTransactionId(), walletId);
-
-        // Используем маппер для формирования ответа
-        return walletRequestMapper.toDto(savedTransaction);
+        return walletTransactionMapper.toOperationDto(saved);
     }
 
     /**
-     * Вспомогательный метод для обработки бизнес-логики изменения баланса.
-     * Вынесен отдельно для улучшения читаемости основного метода.
+     * Метод для процессинга заказов (Saga/Payments).
      */
-    private void updateBalance(WalletRegistered wallet, WalletRequestDto dto) {
-        BigDecimal balanceCurrent = wallet.getBalance();
-        BigDecimal amount = dto.amount();
-        Operation operation = dto.operationType();
-
-        if (operation == Operation.DEPOSIT) {
-            BigDecimal newBalance = balanceCurrent.add(amount);
-            wallet.setBalance(newBalance);
-            log.info("Пополнение кошелька {}. Баланс: {} -> {}", wallet.getWalletId(), balanceCurrent, newBalance);
-
-        } else if (operation == Operation.WITHDRAW) {
-            if (balanceCurrent.compareTo(amount) < 0) {
-                log.warn("Недостаточно средств на кошельке {}. Баланс: {}, запрос: {}",
-                        wallet.getWalletId(), balanceCurrent, amount);
-                throw new IllegalArgumentWalletException("Недостаточно средств для снятия");
-            }
-            BigDecimal newBalance = balanceCurrent.subtract(amount);
-            wallet.setBalance(newBalance);
-            log.info("Снятие с кошелька {}. Баланс: {} -> {}", wallet.getWalletId(), balanceCurrent, newBalance);
-
-        } else {
-            log.warn("Неизвестный тип операции: {}", operation);
-            throw new IllegalArgumentWalletException("Неверно указан тип операции");
+    @Transactional // По умолчанию READ_COMMITTED достаточно при использовании Lock
+    @Override
+    public WalletRequestDto processOrderPayment(Long orderId, UUID walletId,
+                                                BigDecimal amount, Operation operation) {
+        // 1. ПРОВЕРКА ИДЕМПОТЕНТНОСТИ (Без блокировок, просто поиск)
+        var existingOpt = walletRequestRepository.findByOrderIdAndOperationType(orderId, operation);
+        if (existingOpt.isPresent()) {
+            log.info("Повторный запрос для заказа {}. Возвращаем существующий результат.", orderId);
+            return walletTransactionMapper.toFullDto(existingOpt.get());
         }
+        // 2. БЛОКИРОВКА КОШЕЛЬКА (SELECT FOR UPDATE)
+        // Теперь никто другой не сможет изменить этот баланс, пока мы не закончим
+        WalletRegistered wallet = walletRepository.findByIdWithLock(walletId)
+                .orElseThrow(() -> new WalletRegisteredNotFoundException("Кошелек не найден: " + walletId));
+        // 3. ОБНОВЛЕНИЕ БАЛАНСА
+        updateBalance(wallet, amount, operation);
+        // 4. СОХРАНЕНИЕ ТРАНЗАКЦИИ
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(wallet)
+                .orderId(orderId)
+                .amount(amount)
+                .operationType(operation)
+                .createdAt(LocalDateTime.now()) // Не забываем время
+                .build();
+        // Сначала сохраняем кошелек (Dirty Checking сработает сам, но можно и явно)
+        // Затем сохраняем запись о транзакции
+        WalletTransaction saved = walletRequestRepository.save(transaction);
+
+        log.info("Платеж по заказу {} на сумму {} успешно обработан. Новый баланс: {}",
+                orderId, amount, wallet.getBalance());
+        return walletTransactionMapper.toFullDto(saved);
+    }
+    private void updateBalance(WalletRegistered wallet, BigDecimal amount, Operation operation) {
+        // Проверка на отрицательные суммы
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentWalletException("Сумма операции должна быть положительной");
+        }
+        BigDecimal currentBalance = wallet.getBalance();
+
+        switch (operation) {
+            case DEPOSIT:
+                wallet.setBalance(currentBalance.add(amount));
+                break;
+            case WITHDRAW:
+            case PAYMENT:
+                if (currentBalance.compareTo(amount) < 0) {
+                    throw new InsufficientFundsException("Недостаточно средств. Баланс: " + currentBalance);
+                }
+                wallet.setBalance(currentBalance.subtract(amount));
+                break;
+            default:
+                throw new IllegalArgumentWalletException("Неподдерживаемый тип операции: " + operation);
+        }
+    }
+
+    // --- Вспомогательные методы для чистоты кода ---
+
+    private UUID parseUuid(String id) {
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentWalletException("Невалидный формат UUID кошелька");
+        }
+    }
+
+    private WalletRegistered findWalletOrThrow(UUID id) {
+        return walletRepository.findById(id)
+                .orElseThrow(() -> new WalletRegisteredNotFoundException("Кошелек не найден: " + id));
     }
 }

@@ -1,71 +1,55 @@
 package com.inovexx.order_service.config;
 
 import com.inovexx.order_service.events.OutboxEvent;
-import com.inovexx.order_service.repository.OutboxRepository;
-import com.inovexx.order_service.service.KafkaProducerService;
+import com.inovexx.order_service.repository.OutboxRepository;// Наш новый сервис
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
+import javax.annotation.PostConstruct;
+import java.time.OffsetDateTime;
 import java.util.List;
-
+import java.util.concurrent.atomic.AtomicLong;
 @Component
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class OutboxScheduler {
-
     private final OutboxRepository outboxRepository;
-    private final KafkaProducerService kafkaProducerService;
+    private final OutboxProcessor outboxProcessor; // Внедряем процессор
+    private final MeterRegistry meterRegistry;
+    private Counter processedCounter;
+    private Counter errorCounter;
+    private Timer processTimer;
+    private final AtomicLong pendingEventsGauge = new AtomicLong(0);
+    private static final int BATCH_SIZE = 50;
+    @PostConstruct
+    public void initMetrics() {
+        processedCounter = Counter.builder("outbox.events.processed.total").register(meterRegistry);
+        errorCounter = Counter.builder("outbox.events.failed.total").register(meterRegistry);
+        processTimer = Timer.builder("outbox.events.process.duration").register(meterRegistry);
 
-    @Value("${kafka.topic.order-events}")
-    private String topic;
-
-    private static final int MAX_RETRY_ATTEMPTS = 5; // Максимум 5 попыток
-
-    @Scheduled(fixedDelay = 5000) // Проверка каждые 5 секунд
-    @Transactional
-    public void processOutbox() {
-        // Ищем записи, которые еще не обработаны и время попытки которых пришло
-        List<OutboxEvent> events = outboxRepository
-                .findByProcessedFalseAndNextAttemptAtBefore(LocalDateTime.now());
-
-        if (events.isEmpty()) return;
-
-        for (OutboxEvent event : events) {
-            try {
-                // Отправка в Kafka
-                kafkaProducerService.sendMessage(topic, event.getPayload());
-
-                // Успех: помечаем как обработанное
-                event.setProcessed(true);
-                outboxRepository.save(event);
-                log.info("Событие Order ID: {} успешно отправлено", event.getOrderId());
-
-            } catch (Exception e) {
-                handleFailedAttempt(event, e);
-            }
-        }
+        Gauge.builder("outbox.events.pending.count", pendingEventsGauge, AtomicLong::get)
+                .register(meterRegistry);
     }
-
-    private void handleFailedAttempt(OutboxEvent event, Exception e) {
-        int nextRetryCount = event.getRetryCount() + 1;
-        log.error("Ошибка отправки события {}. Попытка: {}/{}",
-                event.getOrderId(), nextRetryCount, MAX_RETRY_ATTEMPTS);
-
-        if (nextRetryCount >= MAX_RETRY_ATTEMPTS) {
-            // Если попытки исчерпаны, можно пометить сообщение как ERROR или оставить для ручного разбора
-            event.setProcessed(true); // Больше не пытаемся, чтобы не зацикливаться
-            log.error("Событие {} переведено в статус ERROR после {} попыток", event.getOrderId(), MAX_RETRY_ATTEMPTS);
-        } else {
-            event.setRetryCount(nextRetryCount);
-            // Экспоненциальная задержка: 20с, 40с, 80с...
-            event.setNextAttemptAt(LocalDateTime.now().plusSeconds(20L * nextRetryCount));
+    @Scheduled(fixedDelayString = "${app.outbox.interval:5000}")
+    public void processOutbox() {
+        // Обновляем метрику очереди
+        pendingEventsGauge.set(outboxRepository.countByProcessedFalse());
+        // Получаем список только ID или объектов (но обрабатываем через прокси)
+        List<OutboxEvent> events = outboxRepository.findEventsToProcess(
+                OffsetDateTime.now(),
+                PageRequest.of(0, BATCH_SIZE)
+        );
+        if (events.isEmpty()) return;
+        for (OutboxEvent event : events) {
+            // Теперь вызов идет через внедренный бин outboxProcessor,
+            // что позволяет Spring применить @Transactional
+            outboxProcessor.processSingleEvent(event.getId(), processedCounter, errorCounter, processTimer);
         }
-
-        outboxRepository.save(event);
     }
 }

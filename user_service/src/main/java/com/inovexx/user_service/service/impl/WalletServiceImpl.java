@@ -10,10 +10,10 @@ import com.inovexx.user_service.mapper.WalletMapper;
 import com.inovexx.user_service.repository.UserRepository;
 import com.inovexx.user_service.repository.WalletRepository;
 import com.inovexx.user_service.service.WalletService;
-import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;

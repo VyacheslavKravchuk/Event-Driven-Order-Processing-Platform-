@@ -22,7 +22,7 @@ public class Order {
     private Long orderId;
 
     @Column(nullable = false)
-    private Long userId;
+    private Long userId; // Идентификатор клиента
 
     @Column(nullable = false)
     private BigDecimal totalAmount;
@@ -47,6 +47,7 @@ public class Order {
             throw new IllegalArgumentException("OrderItem cannot be null");
         }
 
+        // Инициализируем список, если он вдруг null
         if (this.orderItems == null) {
             this.orderItems = new ArrayList<>();
         }
