@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.4.3</version>
+		<version>3.5.7</version>
 		<relativePath/>
 	</parent>
 
@@ -14,13 +14,16 @@
 	<artifactId>notification_service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>notification_service</name>
-	<description>Service for handling multi-channel notifications</description>
 
 	<properties>
 		<java.version>17</java.version>
-		<spring-cloud.version>2024.0.0</spring-cloud.version>
+		<spring-cloud.version>2025.0.0</spring-cloud.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
-		<jjwt.version>0.12.6</jjwt.version>
+		<lombok.version>1.18.30</lombok.version>
+		<jjwt.version>0.12.5</jjwt.version>
+		<bucket4j.version>8.17.0</bucket4j.version>
+		<redisson.version>4.3.0</redisson.version>
+		<os.detected.classifier>windows-x86_64</os.detected.classifier>
 		<springdoc.version>2.8.5</springdoc.version>
 		<firebase.version>9.4.3</firebase.version>
 		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
@@ -73,7 +76,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
-		<!-- Пул соединений для Redis (Lettuce) -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-pool2</artifactId>
@@ -83,37 +85,33 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
+		<!-- Bucket4j -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-core</artifactId>
+			<version>${bucket4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-redisson</artifactId>
+			<version>${bucket4j.version}</version>
+		</dependency>
+		<!-- Redisson -->
+		<dependency>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson-spring-boot-starter</artifactId>
+			<version>${redisson.version}</version>
+		</dependency>
+
 		<!-- Web & Security -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-
-		<!-- JWT -->
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-api</artifactId>
-			<version>${jjwt.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-impl</artifactId>
-			<version>${jjwt.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-jackson</artifactId>
-			<version>${jjwt.version}</version>
-			<scope>runtime</scope>
 		</dependency>
 
 		<!-- Утилиты -->
@@ -149,7 +147,6 @@
 			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Testcontainers для надежных тестов -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-testcontainers</artifactId>
@@ -170,14 +167,13 @@
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
-					<parameters>true</parameters> <!-- Важно для Spring Boot 3 -->
+					<parameters>true</parameters>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
 							<version>${lombok.version}</version>
 						</path>
-						<!-- Binding для корректной работы Lombok вместе с MapStruct -->
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok-mapstruct-binding</artifactId>

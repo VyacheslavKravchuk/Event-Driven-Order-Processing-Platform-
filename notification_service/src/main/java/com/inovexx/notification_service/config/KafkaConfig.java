@@ -10,7 +10,7 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic productTopic() {
-        return TopicBuilder.name("notificationTopic")
+        return TopicBuilder.name("notification.events")
                 .build();
     }
 }
