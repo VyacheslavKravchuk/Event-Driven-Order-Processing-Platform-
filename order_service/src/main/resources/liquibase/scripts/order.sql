@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS orders (
     order_id     BIGSERIAL PRIMARY KEY,
     user_id      BIGINT NOT NULL,
+    customer_email VARCHAR(255) NOT NULL,
     total_amount NUMERIC(19, 2) NOT NULL, -- точность для денег
     order_date   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status       VARCHAR(50) NOT NULL,
@@ -29,3 +30,8 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 
 -- Индекс для внешнего ключа (ускоряет JOIN при получении состава заказа)
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+
+-- Индекс для быстрого поиска заказов по email (полезно для поддержки/поиска)
+CREATE INDEX idx_orders_customer_email ON orders(customer_email);
+
+

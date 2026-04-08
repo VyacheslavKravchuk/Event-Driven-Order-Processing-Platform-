@@ -1,4 +1,4 @@
-package com.inovexx.order_service.config;
+package com.inovexx.order_service.service.outbox;
 
 import com.inovexx.order_service.events.OutboxEvent;
 import com.inovexx.order_service.repository.OutboxRepository;// Наш новый сервис
@@ -15,6 +15,7 @@ import javax.annotation.PostConstruct;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -29,9 +30,13 @@ public class OutboxScheduler {
     private static final int BATCH_SIZE = 50;
     @PostConstruct
     public void initMetrics() {
-        processedCounter = Counter.builder("outbox.events.processed.total").register(meterRegistry);
-        errorCounter = Counter.builder("outbox.events.failed.total").register(meterRegistry);
-        processTimer = Timer.builder("outbox.events.process.duration").register(meterRegistry);
+        processedCounter =
+                Counter.builder("outbox.events.processed.total")
+                        .register(meterRegistry);
+        errorCounter = Counter.builder("outbox.events.failed.total")
+                .register(meterRegistry);
+        processTimer = Timer.builder("outbox.events.process.duration")
+                .register(meterRegistry);
 
         Gauge.builder("outbox.events.pending.count", pendingEventsGauge, AtomicLong::get)
                 .register(meterRegistry);

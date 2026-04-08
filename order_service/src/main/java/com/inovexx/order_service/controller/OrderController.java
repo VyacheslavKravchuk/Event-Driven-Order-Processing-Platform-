@@ -6,8 +6,6 @@ import com.inovexx.order_service.enums.OrderStatus;
 import com.inovexx.order_service.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -83,6 +81,41 @@ public class OrderController {
             @PathVariable Long orderId) { // Исправлено: @PathVariable вместо @RequestParam для соответствия пути
         log.info("Запрос на удаление заказа с ID: {}", orderId);
         orderService.deleteOrderById(orderId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Отмена заказа пользователем",
+            description = "Позволяет пользователю отменить заказ, если он еще не перешел в финальную стадию (SHIPPED или COMPLETED). " +
+                    "Меняет статус заказа на CANCELLED и создает событие в Outbox для уведомления других сервисов.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "204",
+                            description = "Заказ успешно отменен, контент в ответе отсутствует"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "Заказ с указанным ID не найден"
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Бизнес-ошибка: заказ находится в статусе, не допускающем отмену (например, COMPLETED)"
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "Пользователь не авторизован"
+                    )
+            }
+    )
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelOrder(
+            @Parameter(description = "Уникальный идентификатор заказа", example = "1")
+            @PathVariable Long id) {
+
+        log.info("Запрос на отмену заказа пользователем: {}", id);
+        orderService.cancelOrder(id);
+
+        // Возвращаем 204 No Content, так как тело ответа не требуется
         return ResponseEntity.noContent().build();
     }
 }

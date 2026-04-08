@@ -22,7 +22,10 @@ public class Order {
     private Long orderId;
 
     @Column(nullable = false)
-    private Long userId; // Идентификатор клиента
+    private Long userId;
+
+    @Column(name = "customer_email", nullable = false, length = 320)
+    private String customerEmail;
 
     @Column(nullable = false)
     private BigDecimal totalAmount;

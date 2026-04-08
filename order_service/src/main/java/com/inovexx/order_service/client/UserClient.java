@@ -1,8 +1,6 @@
 package com.inovexx.order_service.client;
 
-import com.inovexx.order_service.grpc.PaymentRequest;
-import com.inovexx.order_service.grpc.PaymentResponse;
-import com.inovexx.order_service.grpc.UserServiceGrpc;
+import com.inovexx.order_service.grpc.*;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -14,45 +12,82 @@ import java.math.BigDecimal;
 @Service
 @Slf4j
 public class UserClient {
+
+    // Это и есть наш "BlockingStub" - он генерируется gRPC из proto файла
     @GrpcClient("user-service")
     private UserServiceGrpc.UserServiceBlockingStub userStub;
+
+    public String getUserEmail(Long userId) {
+        log.info("[GRPC] Запрос email для пользователя #{}", userId);
+        try {
+            UserRequest request = UserRequest.newBuilder()
+                    .setUserId(userId)
+                    .build();
+
+            // Синхронный вызов
+            UserResponse response = userStub.getUserProfile(request);
+
+            String email = response.getEmail();
+            if (email == null || email.isBlank()) {
+                throw new RuntimeException("Email пользователя пуст");
+            }
+            return email;
+        } catch (StatusRuntimeException e) {
+            log.error("[GRPC] Ошибка профиля пользователя #{}: {}", userId, e.getStatus());
+            throw new RuntimeException("Сервис пользователей недоступен или данные не найдены", e);
+        }
+    }
+
     @Retry(name = "userService")
     public boolean deductBalance(Long userId, BigDecimal amount, Long orderId) {
-        log.info("Запрос на списание: User {}, Сумма {}, Заказ {}", userId, amount, orderId);
-        // Используем toPlainString() для сохранения точности BigDecimal
-        PaymentRequest request = PaymentRequest.newBuilder()
-                .setUserId(userId)
-                .setAmount(amount.toPlainString())
-                .setOrderId(orderId)
-                .build();
+        log.info("[GRPC] Списание баланса: User {}, Сумма {}, Заказ {}", userId, amount, orderId);
+
+        PaymentRequest request = createPaymentRequest(userId, amount, orderId);
+
         try {
             PaymentResponse response = userStub.deductBalance(request);
             if (!response.getSuccess()) {
-                log.warn("Оплата отклонена: {}", response.getMessage());
+                log.warn("[GRPC] Списание отклонено для заказа #{}: {}", orderId, response.getMessage());
             }
             return response.getSuccess();
         } catch (StatusRuntimeException e) {
-            log.error("Ошибка gRPC (Статус: {}): {}", e.getStatus().getCode(), e.getMessage());
-            // Пробрасываем для Retry, если это сетевая ошибка
+            log.error("[GRPC] Ошибка при списании для заказа #{}: {}", orderId, e.getStatus());
+            // Пробрасываем исключение, чтобы @Retry сработал
             throw e;
         }
     }
+
     @Retry(name = "userService")
-    public void refundBalance(Long userId, BigDecimal amount, Long orderId) {
-        PaymentRequest request = PaymentRequest.newBuilder()
+    public boolean refundBalance(Long userId, BigDecimal amount, Long orderId) {
+        log.info("[GRPC] Возврат баланса: User {}, Сумма {}, Заказ {}", userId, amount, orderId);
+
+        PaymentRequest request = createPaymentRequest(userId, amount, orderId);
+
+        try {
+            // ИСПРАВЛЕНО: используем правильный stub (userStub)
+            PaymentResponse response = userStub.refundBalance(request);
+
+            if (!response.getSuccess()) {
+                log.error("[GRPC] Сервер отказал в возврате для заказа #{}: {}", orderId, response.getMessage());
+                // Если бизнес-логика говорит "нет", ретрай обычно не поможет, возвращаем false
+                return false;
+            }
+
+            log.info("[GRPC] Успешный возврат для заказа #{}", orderId);
+            return true;
+        } catch (StatusRuntimeException e) {
+            log.error("[GRPC] Сетевая ошибка при возврате для заказа #{}: {}", orderId, e.getStatus());
+            // Пробрасываем ошибку для срабатывания @Retry (если это таймаут или 503)
+            throw e;
+        }
+    }
+
+    // Выносим создание реквеста, чтобы не дублировать код
+    private PaymentRequest createPaymentRequest(Long userId, BigDecimal amount, Long orderId) {
+        return PaymentRequest.newBuilder()
                 .setUserId(userId)
-                .setAmount(amount.toPlainString())
+                .setAmount(amount.toPlainString()) // Используем toPlainString для точности
                 .setOrderId(orderId)
                 .build();
-        try {
-            PaymentResponse response = userStub.refundBalance(request);
-            if (!response.getSuccess()) {
-                // В Saga здесь важно выбросить исключение, чтобы транзакция не считалась закрытой
-                throw new RuntimeException("Ошибка возврата: " + response.getMessage());
-            }
-        } catch (Exception e) {
-            log.error("Критический сбой компенсации для заказа {}", orderId);
-            throw e; // Обязательно для механизмов переповтора Saga
-        }
     }
 }

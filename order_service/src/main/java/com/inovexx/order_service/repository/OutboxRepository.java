@@ -39,9 +39,15 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, Long> {
     @Query("SELECT e FROM OutboxEvent e WHERE e.processed = false AND e.nextAttemptAt <= :now")
     List<OutboxEvent> findEventsToProcess(@Param("now") OffsetDateTime now, Pageable pageable);
 
-    //  Пессимистичная блокировка (убираем хинт -2 для теста стабильности)
+    //  Пессимистичная блокировка
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT e FROM OutboxEvent e WHERE e.id = :id AND e.processed = false")
+    @Query("""
+    select e
+    from OutboxEvent e
+    where e.id = :id
+      and e.processed = false
+      and (e.nextAttemptAt is null or e.nextAttemptAt <= CURRENT_TIMESTAMP)
+""")
     Optional<OutboxEvent> findByIdForProcessing(@Param("id") Long id);
 
     @Modifying

@@ -4,23 +4,20 @@ import lombok.Getter;
 
 @Getter
 public enum NotificationType {
-
-    // Каждому типу назначаем имя файла шаблона
     REGISTRATION("registration.ftlh"),
-    PASSWORD_UPDATE("password-update.ftlh"),
-    ORDER_NEW("order-new.ftlh"),
-    ORDER_RESERVED("order-reserved.ftlh"),
-    ORDER_PAID("order-paid.ftlh"),
-    ORDER_SHIPPED("order-shipped.ftlh"),
-    ORDER_COMPLETED("order-completed.ftlh"),
-    ORDER_CANCELLED("order-cancelled.ftlh");
+    //PASSWORD_UPDATE("password-update.ftlh"),
 
-    // Тот самый метод, который вызывается в сервисе
+    // Все статусы заказа теперь используют ОДИН И ТОТ ЖЕ файл
+    ORDER_NEW("order-confirmation.ftlh"),
+    ORDER_RESERVED("order-confirmation.ftlh"),
+    ORDER_PAID("order-confirmation.ftlh"),
+    ORDER_SHIPPED("order-confirmation.ftlh"),
+    ORDER_COMPLETED("order-confirmation.ftlh"),
+    ORDER_CANCELLED("order-confirmation.ftlh");
+
     private final String templateName;
 
-    // Конструктор enum
     NotificationType(String templateName) {
         this.templateName = templateName;
     }
-
 }

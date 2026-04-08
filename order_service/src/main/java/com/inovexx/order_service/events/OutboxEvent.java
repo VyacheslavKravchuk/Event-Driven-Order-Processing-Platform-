@@ -35,10 +35,10 @@ public class OutboxEvent {
     private OffsetDateTime createdAt;
 
     @Column(nullable = false)
-    private boolean processed = false;
+    private Boolean processed;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 30)
     private EventStatus status = EventStatus.PENDING;
 
     @Column(nullable = false)
@@ -51,4 +51,11 @@ public class OutboxEvent {
     @Version
     private Long version;
 
+    private OffsetDateTime processedAt;
+
+    private OffsetDateTime lastAttemptAt;
+
+    private String lastErrorMessage;
+
 }
+

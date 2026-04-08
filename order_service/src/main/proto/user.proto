@@ -1,49 +1,57 @@
 syntax = "proto3";
-
 package user;
-
 import "google/protobuf/timestamp.proto";
-
 option java_multiple_files = true;
 option java_package = "com.inovexx.order_service.grpc";
 option java_outer_classname = "UserProto";
-
-// Сервис кошелька (улучшенная версия с проверкой баланса, точными типами для денег,
-// валютой, timestamp и новым балансом в ответе)
+// Сервис пользователей и кошелька
 service UserService {
+
+  // --- Блок Профиля ---
+
+  // Получить данные профиля пользователя (включая email для уведомлений)
+  rpc GetUserProfile (UserRequest) returns (UserResponse);
+  // --- Блок Кошелька ---
   // Получить текущий баланс пользователя
   rpc GetBalance (BalanceRequest) returns (BalanceResponse);
-
   // Списать средства с баланса (для оплаты заказа)
   rpc DeductBalance (PaymentRequest) returns (PaymentResponse);
-
   // Вернуть средства на баланс (рефанд)
   rpc RefundBalance (PaymentRequest) returns (PaymentResponse);
 }
-
+// Запрос профиля
+message UserRequest {
+  int64 user_id = 1;
+}
+// Ответ с данными пользователя
+message UserResponse {
+  int64 user_id = 1;
+  string email = 2;          // Нужен для сервиса уведомлений
+  string first_name = 3;     // Опционально: для персонализации письма "Здравствуйте, Иван!"
+  string last_name = 4;
+  string phone = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
 message BalanceRequest {
   int64 user_id = 1;
 }
-
 message BalanceResponse {
-  string balance = 1;      // Текущий баланс, строка для точности (e.g. "100.50")
-  string currency = 2;     // Валюта (e.g. "USD", "RUB")
+  string balance = 1;
+  string currency = 2;
   google.protobuf.Timestamp updated_at = 3;
 }
-
 message PaymentRequest {
   int64 user_id = 1;
-  string amount = 2;       // Сумма, строка для точности (e.g. "10.00")
-  string currency = 3;     // Валюта (e.g. "USD")
+  string amount = 2;
+  string currency = 3;
   int64 order_id = 4;
-  google.protobuf.Timestamp created_at = 5;  // Время запроса
+  google.protobuf.Timestamp created_at = 5;
 }
-
 message PaymentResponse {
   bool success = 1;
-  string transaction_id = 2;  // ID транзакции (UUID или подобное)
-  string message = 3;         // Описание результата (при ошибке)
-  string new_balance = 4;     // Новый баланс после операции (e.g. "90.50")
-  string currency = 5;        // Валюта баланса
+  string transaction_id = 2;
+  string message = 3;
+  string new_balance = 4;
+  string currency = 5;
   google.protobuf.Timestamp processed_at = 6;
 }

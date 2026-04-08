@@ -17,8 +17,14 @@ public interface OrderService {
     @Transactional
     OrderDto createOrder(OrderDto orderDto) throws JsonProcessingException;
 
+    void processOrderSaga(Long orderId);
+
     OrderDto updateOrderStatus(Long id, OrderStatus newStatus) throws JsonProcessingException;
 
     @Transactional
     void deleteOrderById(Long productId) throws JsonProcessingException;
+
+    void cancelOrder(Long id);
+
+    void processCancelSaga(Long orderId, String reason);
 }

@@ -1,30 +1,44 @@
--- Создание таблицы outbox
-CREATE TABLE outbox (
-    id BIGSERIAL PRIMARY KEY,  -- @Id @GeneratedValue(IDENTITY)
-    order_id BIGINT,           -- orderId (nullable, как Long)
-    event_type VARCHAR(255) NOT NULL,  -- eventType (FIXED strings, e.g. "ORDER_CREATED")
-    payload TEXT NOT NULL,     -- @Column(columnDefinition = "TEXT")
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processed BOOLEAN NOT NULL DEFAULT FALSE,
-    role VARCHAR(20) NOT NULL,  -- @Enumerated(STRING)
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    next_attempt_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 0  -- @Version optimistic locking
+--liquibase formatted sql
+
+--changeset outbox:v2
+CREATE TABLE IF NOT EXISTS outbox (
+    id                BIGSERIAL PRIMARY KEY,
+    -- Маппинг для orderId (Long)
+    order_id          BIGINT NOT NULL,
+    -- Тип события (ORDER_CREATED, etc)
+    event_type        VARCHAR(255) NOT NULL,
+    -- JSON данные (TEXT в Postgres соответствует String в JPA)
+    payload           TEXT NOT NULL,
+
+    -- Даты с часовым поясом (OffsetDateTime)
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    next_attempt_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at      TIMESTAMP WITH TIME ZONE,
+    last_attempt_at   TIMESTAMP WITH TIME ZONE,
+
+    -- Состояние и обработка
+    processed         BOOLEAN NOT NULL DEFAULT FALSE,
+    status            VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    retry_count       INTEGER NOT NULL DEFAULT 0,
+
+    -- Логирование ошибок
+    last_error_message TEXT,
+
+    -- Оптимистическая блокировка JPA (@Version)
+    version           BIGINT NOT NULL DEFAULT 0
 );
 
--- Создание индексов (как указано в @Table(indexes))
-CREATE INDEX idx_outbox_processed_next_attempt ON outbox (processed, next_attempt_at);
-CREATE INDEX idx_outbox_created_at ON outbox (created_at);
+--changeset outbox:v2_indexes
+-- Индекс 1: Поиск для планировщика (processed + next_attempt_at)
+-- Название индекса в точности как в @Index(name = "idx_outbox_proc_next")
+CREATE INDEX idx_outbox_proc_next ON outbox (processed, next_attempt_at);
 
--- Опционально: комментарии для ясности
-COMMENT ON TABLE outbox IS 'Outbox для событий (Transactional Outbox Pattern)';
-COMMENT ON COLUMN outbox.id IS 'Уникальный ID события';
-COMMENT ON COLUMN outbox.order_id IS 'ID aggregate root (заказ)';
-COMMENT ON COLUMN outbox.event_type IS 'Тип события (не мутировать: ORDER_CREATED, START_GRPC_SAGA и т.д.)';
-COMMENT ON COLUMN outbox.payload IS 'JSON snapshot события';
-COMMENT ON COLUMN outbox.created_at IS 'Время создания';
-COMMENT ON COLUMN outbox.processed IS 'Обработано ли событие';
-COMMENT ON COLUMN outbox.status IS 'Статус: PENDING/RETRYING/SUCCESS/FAILED';
-COMMENT ON COLUMN outbox.retry_count IS 'Количество попыток';
-COMMENT ON COLUMN outbox.next_attempt_at IS 'Время следующей попытки';
-COMMENT ON COLUMN outbox.version IS 'Версия для optimistic locking';
+-- Индекс 2: Поиск по времени создания (@Index(name = "idx_outbox_created"))
+CREATE INDEX idx_outbox_created ON outbox (created_at);
+
+-- Индекс 3: Индекс по order_id (полезен для поиска всех событий конкретного заказа)
+CREATE INDEX idx_outbox_order_id ON outbox (order_id);
+
+-- Добавляем комментарии (Best Practice для эксплуатации БД)
+COMMENT ON COLUMN outbox.status IS 'Статусы из EventStatus: PENDING, PROCESSED, FAILED, etc';
+COMMENT ON COLUMN outbox.last_error_message IS 'Текст ошибки последней попытки отправки в Kafka';
