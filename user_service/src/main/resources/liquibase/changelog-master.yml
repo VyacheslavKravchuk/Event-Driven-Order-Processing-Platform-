@@ -1,3 +1,7 @@
 databaseChangeLog:
   - include:
       file: liquibase/scripts/users.sql
+  - include:
+      file: liquibase/scripts/wallets.sql
+  - include:
+      file: liquibase/scripts/wallet_transactions.sql

@@ -1,5 +1,6 @@
 package com.inovexx.auth_service.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.inovexx.auth_service.dto.AuthenticationResponse;
 import com.inovexx.auth_service.dto.UserDto;
 import com.inovexx.auth_service.security.UserDetailsServiceImpl;
@@ -26,7 +27,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 
 
 @RestController
-@RequestMapping("/users_auth")
+@RequestMapping("/users")
 public class UserAuthController {
 
     private final AuthenticationManager authenticationManager;
@@ -37,7 +38,7 @@ public class UserAuthController {
 
 
     public UserAuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil,
-                          UserAuthService userService, UserDetailsServiceImpl userDetailsService) {
+                              UserAuthService userService, UserDetailsServiceImpl userDetailsService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.userService = userService;
@@ -51,7 +52,7 @@ public class UserAuthController {
             @ApiResponse(responseCode = "500", description = "Внутренняя ошибка сервера")
     })
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody UserDto userDto) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserDto userDto) throws JsonProcessingException {
         logger.info("Запрос регистрации");
         userService.registerNewUser(userDto);
         return ResponseEntity.ok("Пользователь зарегистрирован");
@@ -69,10 +70,10 @@ public class UserAuthController {
         logger.info("Запрос аутентификации");
 
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(userDto.getUsername(), userDto.getPassword())
+                new UsernamePasswordAuthenticationToken(userDto.username(), userDto.password())
         );
 
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(userDto.getUsername());
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(userDto.username());
         final String jwt = jwtUtil.generateToken(userDetails);
 
         return ResponseEntity.ok(new AuthenticationResponse(jwt));

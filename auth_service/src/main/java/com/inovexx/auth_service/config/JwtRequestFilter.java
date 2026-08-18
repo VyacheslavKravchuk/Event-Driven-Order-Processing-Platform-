@@ -3,6 +3,7 @@ package com.inovexx.auth_service.config;
 import java.io.IOException;
 
 import com.inovexx.auth_service.util.JwtUtil;
+import io.jsonwebtoken.io.Decoders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,8 @@ import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.jsonwebtoken.Claims;
+
+import javax.crypto.SecretKey;
 import java.security.Key;
 
 
@@ -39,8 +42,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         this.jwtUtil = jwtUtil;
     }
 
-    private Key getSigningKey() {
-        byte[] keyBytes = secret.getBytes();
+    private SecretKey getSigningKey() {
+        logger.info("Используемый секретный ключ (длина): {}", secret.length());
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -87,8 +91,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 }
             } catch (Exception e) {
                 logger.error("Ошибка при обработке JWT: {}", e.getMessage());
-                // ВАЖНО: Не устанавливать здесь status 403 или 401.
-                // Пусть этим занимается SecurityFilterChain.
             }
         }
 

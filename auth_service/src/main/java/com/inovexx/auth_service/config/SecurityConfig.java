@@ -9,7 +9,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.http.HttpMethod;
 
 import org.springframework.context.annotation.Bean;
@@ -57,24 +56,30 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // 1. Отключаем всё, что провоцирует браузер на показ окна логина
                 .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable) // Явно отключаем
+                .formLogin(AbstractHttpConfigurer::disable)
 
                 .authorizeHttpRequests(auth -> auth
-                        // Используем permitAll() здесь
+                        // 2. Белый список (упростили дубли)
                         .requestMatchers(
-                                "/users/register",
-                                "/users/authenticate",
+                                "/api/auth/register",
+                                "/api/auth/authenticate",
+                                "/api/auth/v3/api-docs",
+                                "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/swagger-ui.html",
+                                "/webjars/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Все остальные запросы требуют аутентификации
                         .anyRequest().authenticated()
                 )
 
                 .exceptionHandling(ex -> ex
-                        // EntryPoint будет вызван только для тех, кто не прошел permitAll()
+                        // 3. Убедитесь, что jwtAuthenticationEntryPoint внутри делает
+                        // response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
 

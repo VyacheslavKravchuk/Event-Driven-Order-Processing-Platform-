@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: liquibase/scripts/order.sql
+  - include:
+      file: liquibase/scripts/outbox.sql
+  - include:
+      file: liquibase/scripts/product_prices_cache.sql

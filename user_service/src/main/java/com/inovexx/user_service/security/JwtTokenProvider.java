@@ -24,6 +24,7 @@ public class JwtTokenProvider {
 
     // Метод для получения ключа подписи из Base64 строки
     private SecretKey getSigningKey() {
+        logger.info("Используемый секретный ключ (длина): {}", secretKey.length());
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }

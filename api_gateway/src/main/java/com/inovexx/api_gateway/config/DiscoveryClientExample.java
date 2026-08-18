@@ -1,4 +1,4 @@
-package com.inovexx.api_gateway;
+package com.inovexx.api_gateway.config;
 
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.beans.factory.annotation.Autowired;

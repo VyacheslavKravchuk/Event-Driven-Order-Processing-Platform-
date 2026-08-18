@@ -1,6 +1,7 @@
 package com.inovexx.user_service.controller;
 
-import com.inovexx.user_service.entity.UserDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.inovexx.user_service.dto.UserDto;
 import com.inovexx.user_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -31,7 +32,6 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
-
 
 
     @Operation(summary = "Получение всех пользователей",
@@ -99,7 +99,7 @@ public class UserController {
             },
             tags = "Users"
     )
-    @PatchMapping("/me")
+    @PatchMapping("/update")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<UserDto> updateUser(@Valid @RequestBody UserDto userDto, Principal principal) throws JsonProcessingException {
         logger.info("Запрос обновления пользователя");
