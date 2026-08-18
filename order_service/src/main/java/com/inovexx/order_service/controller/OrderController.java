@@ -1,9 +1,12 @@
 package com.inovexx.order_service.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.inovexx.order_service.dto.CancelOrderRequest;
 import com.inovexx.order_service.dto.OrderDto;
 import com.inovexx.order_service.enums.OrderStatus;
-import com.inovexx.order_service.service.OrderService;
+import com.inovexx.order_service.service.impl.CancellationOrderTxService;
+import com.inovexx.order_service.service.impl.OrderCreationTxService;
+import com.inovexx.order_service.service.impl.OrderServiceMain;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,6 +22,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Tag(name = "Order Management", description = "API для управления заказами")
 @RestController
@@ -26,9 +30,14 @@ import java.util.List;
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Slf4j
+
 public class OrderController {
 
-    private final OrderService orderService;
+    private final OrderServiceMain orderServiceMain;
+
+    private final OrderCreationTxService orderCreationTxService;
+
+    private final CancellationOrderTxService cancellationOrderTxService;
 
     @Operation(summary = "Получить список всех заказов")
     @ApiResponses(value = {
@@ -39,16 +48,16 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<List<OrderDto>> getAllOrders() {
         log.info("Запрос на получение всех заказов");
-        return ResponseEntity.ok(orderService.findAll());
+        return ResponseEntity.ok(orderServiceMain.findAll());
     }
 
     @Operation(summary = "Получить заказ по ID")
     @GetMapping("/{orderId}")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<OrderDto> getOrderById(
-            @Parameter(description = "ID заказа") @PathVariable Long orderId) {
+            @Parameter(description = "ID заказа") @PathVariable UUID orderId) {
         log.info("Запрос на получение заказа по ID: {}", orderId);
-        return orderService.findById(orderId)
+        return orderServiceMain.findById(orderId)
                 .map(ResponseEntity::ok)
                 .orElseGet(ResponseEntity.notFound()::build);
     }
@@ -58,19 +67,21 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_ADMIN')") // Обычно USER тоже может создавать заказы
     public ResponseEntity<OrderDto> createOrder(@RequestBody OrderDto orderDto) throws JsonProcessingException {
         log.info("Запрос на создание нового заказа для пользователя: {}", orderDto.userId());
-        OrderDto createdOrder = orderService.createOrder(orderDto);
+        OrderDto createdOrder = orderCreationTxService.createOrderTx(orderDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdOrder);
     }
+
+
 
     @SneakyThrows
     @Operation(summary = "Обновить статус заказа")
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<OrderDto> updateOrderStatus(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestParam OrderStatus newStatus) { // Убрал лишний throws, если сервис его не кидает
         log.info("Обновление статуса заказа {} на {}", id, newStatus);
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, newStatus));
+        return ResponseEntity.ok(orderServiceMain.updateOrderStatus(id, newStatus));
     }
 
     @SneakyThrows
@@ -78,9 +89,9 @@ public class OrderController {
     @DeleteMapping("/{orderId}") // Исправлена опечатка в пути {orderId/cancel} -> {orderId}
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteOrder(
-            @PathVariable Long orderId) { // Исправлено: @PathVariable вместо @RequestParam для соответствия пути
+            @PathVariable UUID orderId) { // Исправлено: @PathVariable вместо @RequestParam для соответствия пути
         log.info("Запрос на удаление заказа с ID: {}", orderId);
-        orderService.deleteOrderById(orderId);
+        orderServiceMain.deleteOrderById(orderId);
         return ResponseEntity.noContent().build();
     }
 
@@ -107,16 +118,27 @@ public class OrderController {
                     )
             }
     )
-    @PatchMapping("/{id}/cancel")
+    @PostMapping("/{orderId}/cancel")
     public ResponseEntity<Void> cancelOrder(
-            @Parameter(description = "Уникальный идентификатор заказа", example = "1")
-            @PathVariable Long id) {
+            @PathVariable UUID orderId,
+            @RequestBody(required = false) CancelOrderRequest request
+    ) {
+        cancellationOrderTxService.cancelOrder(
+                orderId,
+                request != null ? request.reason() : null
+        );
 
-        log.info("Запрос на отмену заказа пользователем: {}", id);
-        orderService.cancelOrder(id);
-
-        // Возвращаем 204 No Content, так как тело ответа не требуется
         return ResponseEntity.noContent().build();
     }
+//    @PatchMapping("/{id}/cancel")
+//    public ResponseEntity<Void> cancelOrder(
+//            @Parameter(description = "Уникальный идентификатор заказа", example = "1")
+//            @PathVariable UUID id, @RequestParam(defaultValue = "USER_REQUEST") CancellationReason reason) {
+//
+//        log.info("Запрос на отмену заказа пользователем: {}", id);
+//        cancellationOrderTxService.cancelOrder(id, reason);
+//
+//        // Возвращаем 204 No Content, так как тело ответа не требуется
+//        return ResponseEntity.noContent().build();
+//    }
 }
-

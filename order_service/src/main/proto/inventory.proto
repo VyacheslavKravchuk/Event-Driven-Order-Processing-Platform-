@@ -1,53 +1,73 @@
 syntax = "proto3";
 
-// Генерировать отдельные Java-файлы для сообщений и сервиса
+package com.inovexx.inventory.grpc;
+
 option java_multiple_files = true;
-// Пакет, в котором будет лежать сгенерированный код
-option java_package = "com.inovexx.inventory_service.grpc";
+option java_package = "com.inovexx.inventory.grpc";
+option java_outer_classname = "InventoryProto";
 
-/**
- * Сервис управления складскими запасами.
- * Обеспечивает атомарное резервирование и отмену брони для Саги заказов.
- */
+// Сервис для управления запасами и резервированием товаров
 service InventoryService {
+  // Batch-резервирование товаров (транзакционное, идемпотентное)
+  rpc ReserveBatchStock (ReserveBatchRequest) returns (ReserveBatchResponse);
 
-  // Шаг 1: Зарезервировать товар на складе
-  rpc ReserveStock (ReserveRequest) returns (ReserveResponse);
+  // Отмена резервации (компенсирующая операция для Саги)
+  rpc CancelBatchReservation (CancelReservationRequest) returns (CancelReservationResponse);
 
-  // Шаг 2 (Откат): Отменить ранее созданный резерв, если заказ не был оплачен
-  rpc CancelReservation (CancelReserveRequest) returns (CancelReserveResponse);
+  // Фиксация списания после успешной оплаты
+  rpc CommitBatchReduction (CommitReductionRequest) returns (CommitReductionResponse);
 }
 
-/**
- * Запрос на резервирование товара.
- */
-message ReserveRequest {
-  string product_id = 1; // Артикул или UUID товара
-  int32 quantity = 2;    // Количество для брони
-  int64 order_id = 3;    // ID заказа для связи операций в логах
-}
-
-/**
- * Ответ на попытку резервирования.
- */
-message ReserveResponse {
-  bool success = 1;      // true, если товар успешно заблокирован
-  string message = 2;    // Описание (например, "Недостаточно на складе")
-}
-
-/**
- * Запрос на отмену резерва (возврат товара в свободную продажу).
- */
-message CancelReserveRequest {
+// Структура позиции товара в заказе
+message OrderItemRequest {
   string product_id = 1;
   int32 quantity = 2;
-  int64 order_id = 3;    // Обязательно передаем ID заказа для трассировки отмены
 }
 
-/**
- * Результат отмены резерва.
- */
-message CancelReserveResponse {
-  bool success = 1;      // true, если резерв успешно снят
-  string message = 2;    // Информационное сообщение
+// --- Запрос на резервирование ---
+message ReserveBatchRequest {
+  string order_id = 1;                  // Уникальный идентификатор заказа (может быть UUID)
+  repeated OrderItemRequest items = 2;    // Список товаров для резервации
+  string idempotency_key = 3;           // Ключ идемпотентности (опционально, но рекомендуется)
+}
+
+// Ответ на резервирование
+message ReserveBatchResponse {
+  bool success = 1;
+  ReservationError error = 2;            // Код ошибки
+  string message = 3;                   // Описание ошибки (если есть)
+}
+
+// --- Запрос на отмену резервации ---
+message CancelReservationRequest {
+  string order_id = 1;                  // Уникальный идентификатор заказа
+  repeated OrderItemRequest items = 2;    // Список товаров для отмены
+  string idempotency_key = 3;           // Ключ идемпотентности (опционально)
+}
+
+// Ответ на отмену
+message CancelReservationResponse {
+  bool success = 1;
+  ReservationError error = 2;
+  string message = 3;
+}
+
+// --- Запрос на фиксацию списания ---
+message CommitReductionRequest {
+  string order_id = 1;                  // Уникальный идентификатор заказа
+  string idempotencyKey = 2; // для идемпотентности
+}
+
+message CommitReductionResponse {
+  bool success = 1;
+  ReservationError error = 2;
+  string message = 3;
+}
+
+// Коды ошибок резервирования
+enum ReservationError {
+    IDEMPOTENCY_VIOLATION = 0;  // Идемпотентность нарушена
+    NO_ACTIVE_RESERVATIONS = 1;  // Нет активных резервов
+    INSUFFICIENT_STOCK = 2;     // Недостаточно товара
+    INTERNAL_ERROR = 3;          // Внутренняя ошибка
 }

@@ -1,7 +1,6 @@
 package com.inovexx.inventory_service.service;
 
 import com.inovexx.inventory_service.dto.InventoryDto;
-import com.inovexx.inventory_service.entity.Inventory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;

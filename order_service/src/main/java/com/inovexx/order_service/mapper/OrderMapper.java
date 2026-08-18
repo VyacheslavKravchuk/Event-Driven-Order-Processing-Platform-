@@ -1,5 +1,6 @@
 package com.inovexx.order_service.mapper;
 
+import com.inovexx.inventory.grpc.OrderItemRequest;
 import com.inovexx.order_service.dto.OrderDto;
 import com.inovexx.order_service.dto.OrderItemDto;
 import com.inovexx.order_service.entity.Order;
@@ -10,8 +11,13 @@ import org.mapstruct.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+@Mapper(
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
+        collectionMappingStrategy = CollectionMappingStrategy.ADDER_PREFERRED // Использует add... метод, если он есть
+)
 public interface OrderMapper {
 
     OrderDto orderToOrderDto(Order order);
@@ -27,9 +33,16 @@ public interface OrderMapper {
     @Mapping(target = "orderId", source = "orderId")
     @Mapping(target = "status", expression = "java(order.getStatus().name())") // Enum в String
     @Mapping(target = "totalAmount", source = "totalAmount", qualifiedByName = "bigDecimalToDouble")
-    // Если в .proto добавите дату, используйте:
+    // Если в .proto добавить дату, используем:
     // @Mapping(target = "orderDate", source = "orderDate", qualifiedByName = "offsetDateTimeToString")
     OrderResponse toGrpcResponse(Order order);
+
+    @Mapping(target = "productId", source = "productId")
+    @Mapping(target = "quantity", source = "quantity")
+    OrderItemRequest toGrpcItemRequest(OrderItem item);
+
+    // Маппинг списка позиций
+    List<OrderItemRequest> toGrpcItemRequestList(List<OrderItem> items);
 
     // Вспомогательный метод для конвертации денег
     @Named("bigDecimalToDouble")

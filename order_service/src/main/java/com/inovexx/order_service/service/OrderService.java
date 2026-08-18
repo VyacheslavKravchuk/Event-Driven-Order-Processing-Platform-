@@ -2,29 +2,35 @@ package com.inovexx.order_service.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.inovexx.order_service.dto.OrderDto;
+import com.inovexx.order_service.entity.Order;
+import com.inovexx.order_service.enums.CancellationReason;
 import com.inovexx.order_service.enums.OrderStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface OrderService {
 
     List<OrderDto> findAll();
 
-    public Optional<OrderDto> findById(Long productId);
+    public Optional<OrderDto> findById(UUID orderId);
 
     @Transactional
     OrderDto createOrder(OrderDto orderDto) throws JsonProcessingException;
 
-    void processOrderSaga(Long orderId);
+    void processOrderSaga(UUID orderId);
 
-    OrderDto updateOrderStatus(Long id, OrderStatus newStatus) throws JsonProcessingException;
+    OrderDto updateOrderStatus(UUID id, OrderStatus newStatus) throws JsonProcessingException;
 
     @Transactional
-    void deleteOrderById(Long productId) throws JsonProcessingException;
+    void deleteOrderById(UUID orderId) throws JsonProcessingException;
 
-    void cancelOrder(Long id);
+    void saveToOutbox(UUID orderId, String eventType, Object payload);
 
-    void processCancelSaga(Long orderId, String reason);
+    void cancelOrder(UUID orderId, CancellationReason reason);
+
+    //void processCancelSaga(UUID orderId, CancellationReason reason);
+    void performSagaCancellation(Order order, CancellationReason reason);
 }

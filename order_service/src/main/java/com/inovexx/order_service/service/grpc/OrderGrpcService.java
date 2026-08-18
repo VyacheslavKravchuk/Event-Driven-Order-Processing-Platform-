@@ -19,17 +19,19 @@ public class OrderGrpcService extends OrderInternalServiceGrpc.OrderInternalServ
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper; // Тот самый интерфейс, для которого создался OrderMapperImpl
 
-    @Override
-    public void getOrder(OrderRequest request, StreamObserver<OrderResponse> responseObserver) {
-        // 1. Ищем в БД
-        Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new StatusRuntimeException(Status.NOT_FOUND));
-
-        // 2. Маппим сущность в gRPC ответ
-        OrderResponse response = orderMapper.toGrpcResponse(order);
-
-        // 3. Отправляем клиенту
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
+//    @Override
+//    public void getOrder(OrderRequest request, StreamObserver<OrderResponse> responseObserver) {
+//        // 1. Ищем в БД
+//        Order order = orderRepository.findById(
+//                request.getOrderId()
+//                )
+//                .orElseThrow(() -> new StatusRuntimeException(Status.NOT_FOUND));
+//
+//        // 2. Маппим сущность в gRPC ответ
+//        OrderResponse response = orderMapper.toGrpcResponse(order);
+//
+//        // 3. Отправляем клиенту
+//        responseObserver.onNext(response);
+//        responseObserver.onCompleted();
+//    }
 }

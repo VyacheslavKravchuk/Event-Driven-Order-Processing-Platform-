@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS outbox (
     id                BIGSERIAL PRIMARY KEY,
     -- Маппинг для orderId (Long)
-    order_id          BIGINT NOT NULL,
+    order_id          UUID NOT NULL,
     -- Тип события (ORDER_CREATED, etc)
     event_type        VARCHAR(255) NOT NULL,
     -- JSON данные (TEXT в Postgres соответствует String в JPA)

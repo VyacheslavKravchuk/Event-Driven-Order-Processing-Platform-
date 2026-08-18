@@ -2,9 +2,10 @@ package com.inovexx.order_service.events.payload;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record OrderPaidEvent(
-        Long orderId,
+        UUID orderId,
         Long userId,
         String email,
         BigDecimal totalAmount,

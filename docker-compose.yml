@@ -1,10 +1,8 @@
-version: "3.9"
-
 services:
   api-gateway:
     image: api-gateway
     ports:
-      - "8080:8080"
+      - "8088:8088"
     depends_on:
       - auth-service
       - user-service
@@ -15,144 +13,165 @@ services:
 
   kafka-broker:
     image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka-broker
+    container_name: kafka-broker
     ports:
       - "9092:9092"
     environment:
-      # Включаем режим Kraft, устанавливая роль 'broker,controller'
-      KAFKA_PROCESS ROLES: 'broker,controller'
-      # Уникальный UUID кластера (можно сгенерировать командой 'kafka-storage random-uuid')
-      KAFKA_CLUSTER_ID: 'Mk-Sl-b903eO_A8mY0yNkg'
-      # Указываем, где Kafka должна искать себя в сети Docker Compose
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092,PLAINTEXT_HOST://localhost:9092
-      # Внутренний и внешний протоколы
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Адрес для связи между контроллером и брокером
-      KAFKA_LISTENERS: PLAINTEXT://:9092
-      # Информация о контроллере
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093
-      KAFKA_CONTROLLER_LISTENER_NAME: PLAINTEXT
-      # Настройки хранения данных
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CLUSTER_ID: "Mk-Sl-b903eO_A8mY0yNkg"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-broker:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAME: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-broker:9093"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  auth-db:
+    image: postgres:16
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+
   auth-service:
     image: auth-service
     ports:
       - "8081:8081"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-db:5432/auth_db
-      - SPRING_DATASOURCE_USERNAME=authuser
-      - SPRING_DATASOURCE_PASSWORD=authpassword
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
     depends_on:
       - auth-db
+      - kafka-broker
 
-  auth-db:
+  user-db:
     image: postgres:16
+    container_name: user-db
     environment:
-      - POSTGRES_USER=authuser
-      - POSTGRES_PASSWORD=authpassword
-      - POSTGRES_DB=auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: user_db
+    ports:
+      - "5434:5432"
     volumes:
-      - auth-db-data:/var/lib/postgresql/data
+      - user-db-data:/var/lib/postgresql/data
 
   user-service:
     image: user-service
     ports:
       - "8082:8082"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://user-db:5432/user_db
-      - SPRING_DATASOURCE_USERNAME=user
-      - SPRING_DATASOURCE_PASSWORD=password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-db:5432/user_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
     depends_on:
       - user-db
       - kafka-broker
 
-  user-db:
+  inventory-db:
     image: postgres:16
+    container_name: inventory-db
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=user_db
-    volumes:
-      - user-db-data:/var/lib/postgresql/data
-
-  product-service:
-    image: product-service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: inventory_db
     ports:
-      - "8083:8083"
-    environment:
-      - SPRING_DATA_MONGODB_URI=mongodb://product-db:27017/product_db
-    depends_on:
-      - product-db
-      - kafka-broker
-
-  product-db:
-    image: mongo:latest
+      - "5435:5432"
     volumes:
-      - product-db-data:/data/db
+      - inventory-db-data:/var/lib/postgresql/data
 
   inventory-service:
     image: inventory-service
     ports:
-      - "8084:8084"
+      - "8083:8083"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://inventory-db:5432/inventory_db
-      - SPRING_DATASOURCE_USERNAME=inventory
-      - SPRING_DATASOURCE_PASSWORD=password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-db:5432/inventory_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
     depends_on:
       - inventory-db
-      - product-service
       - kafka-broker
 
-  inventory-db:
-    image: postgres:16
-    environment:
-      - POSTGRES_USER=inventory
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=inventory_db
+  product-db:
+    image: mongo:latest
+    container_name: product-db
+    ports:
+      - "27018:27017"
     volumes:
-      - inventory-db-data:/var/lib/postgresql/data
+      - product-db-data:/data/db
+
+  product-service:
+    image: product-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://product-db:27017/product_db
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
+    depends_on:
+      - product-db
+      - kafka-broker
+
+  order-db:
+    image: postgres:16
+    container_name: order-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: order_db
+    ports:
+      - "5436:5432"
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
 
   order-service:
     image: order-service
     ports:
       - "8085:8085"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://order-db:5432/order_db
-      - SPRING_DATASOURCE_USERNAME=order
-      - SPRING_DATASOURCE_PASSWORD=password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/order_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
     depends_on:
       - order-db
       - inventory-service
+      - user-service
       - kafka-broker
 
-  order-db:
-    image: postgres:16
-    environment:
-      - POSTGRES_USER=order
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=order_db
+  notification-db:
+    image: mongo:latest
+    container_name: notification-db
+    ports:
+      - "27019:27017"
     volumes:
-      - order-db-data:/var/lib/postgresql/data
+      - notification-db-data:/data/db
 
   notification-service:
     image: notification-service
     ports:
       - "8086:8086"
     environment:
-      - SPRING_DATA_MONGODB_URI=mongodb://notification-db:27017/notification_db
+      SPRING_DATA_MONGODB_URI: mongodb://notification-db:27017/notification_db
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
     depends_on:
       - notification-db
       - kafka-broker
-
-  notification-db:
-    image: mongo:latest
-    volumes:
-      - notification-db-data:/data/db
 
 volumes:
   auth-db-data:

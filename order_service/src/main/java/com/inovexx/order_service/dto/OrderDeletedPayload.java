@@ -1,9 +1,10 @@
 package com.inovexx.order_service.dto;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record OrderDeletedPayload(
-        Long orderId,
+        UUID orderId,
         String reason,
         OffsetDateTime deletedAt
 ) {}

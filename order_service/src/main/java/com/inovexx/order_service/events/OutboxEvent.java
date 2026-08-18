@@ -1,11 +1,13 @@
 package com.inovexx.order_service.events;
 
 import com.inovexx.order_service.enums.EventStatus;
+import com.inovexx.order_service.enums.OutboxEventType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -22,10 +24,11 @@ public class OutboxEvent {
     private Long id;
 
     @Column(nullable = false, updatable = false) // updatable=false защищает от случайной смены ID
-    private Long orderId;
+    private UUID orderId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false)
-    private String eventType;
+    private OutboxEventType eventType;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String payload;
@@ -35,7 +38,7 @@ public class OutboxEvent {
     private OffsetDateTime createdAt;
 
     @Column(nullable = false)
-    private Boolean processed;
+    private boolean processed = false; // Инициализация по умолчанию
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

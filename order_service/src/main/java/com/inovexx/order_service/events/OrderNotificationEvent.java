@@ -2,11 +2,13 @@ package com.inovexx.order_service.events;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
+
 /**
  * Record для отправки события в Kafka.
  */
 public record OrderNotificationEvent(
-        Long orderId,
+        UUID orderId,
         Long userId,
         String customerEmail,
         String status,

@@ -33,4 +33,9 @@ public class OrderItem {
     @Column(nullable = false)
     private BigDecimal price;
 
+    @Column(nullable = false)
+    private Integer reservedQuantity = 0;
+    @Column(nullable = false)
+    private boolean reservationReleased = false;
+
 }

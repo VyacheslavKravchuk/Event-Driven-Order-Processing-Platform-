@@ -54,4 +54,11 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, Long> {
     @Transactional
     void deleteByProcessedTrueAndCreatedAtBefore(OffsetDateTime threshold);
 
+
+    //Optional<OutboxEvent> findByIdForUpdate(@Param("id") Long eventId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM OutboxEvent o WHERE o.id = :id")
+    Optional<OutboxEvent> findByIdForUpdate(@Param("id") Long id);
+
 }

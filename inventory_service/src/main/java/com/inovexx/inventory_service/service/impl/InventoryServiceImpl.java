@@ -8,8 +8,8 @@ import com.inovexx.inventory_service.mapper.InventoryMapper;
 import com.inovexx.inventory_service.repository.InventoryRepository;
 import com.inovexx.inventory_service.service.InventoryService;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,78 +19,94 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j // Используем аннотацию Lombok для логирования
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryMapper inventoryMapper;
-    private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
 
     @Override
     @Transactional(readOnly = true)
     public List<InventoryDto> findAll() {
-        logger.info("Получение всех записей инвентаря");
-        List<InventoryDto> inventoryDtos = inventoryRepository.findAll()
+        log.info("Получение всех записей инвентаря");
+        return inventoryRepository.findAll()
                 .stream()
                 .map(inventoryMapper::inventoryToInventoryDto)
                 .collect(Collectors.toList());
-        logger.info("Найдено {} записей инвентаря", inventoryDtos.size());
-        return inventoryDtos;
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<InventoryDto> findById(String productId) {
-        logger.info("Поиск записи инвентаря по ID продукта: {}", productId);
-        return inventoryRepository.findByProductId(productId).map(inventoryMapper::inventoryToInventoryDto);
+        // Очищаем ID от возможных пробелов, которые могут прийти из REST/Kafka
+        String cleanId = productId.trim();
+        log.info("Поиск записи инвентаря по productId: '{}'", cleanId);
+
+        return inventoryRepository.findByProductId(cleanId)
+                .map(inventoryMapper::inventoryToInventoryDto);
     }
 
-    @Transactional
     @Override
+    @Transactional
     public InventoryDto create(InventoryDto inventoryDto) {
-        logger.info("Создание новой записи инвентаря: {}", inventoryDto);
+        log.info("Запрос на создание записи инвентаря для продукта: {}", inventoryDto.productId());
+
+        // Проверяем, нет ли уже такой записи, чтобы избежать DuplicateKeyException
+        inventoryRepository.findByProductId(inventoryDto.productId())
+                .ifPresent(i -> {
+                    throw new IllegalStateException("Запись для продукта " + inventoryDto.productId() + " уже существует");
+                });
 
         Inventory inventory = inventoryMapper.inventoryDtoToInventory(inventoryDto);
-        validateInventory(inventory);
+        validateStockLevel(inventory.getAvailableStock());
 
         Inventory savedInventory = inventoryRepository.save(inventory);
-        logger.info("Запись инвентаря успешно создана с ID: {}", savedInventory.getProductId());
+        log.info("Запись успешно создана для productId: {}", savedInventory.getProductId());
         return inventoryMapper.inventoryToInventoryDto(savedInventory);
     }
 
     @Override
     @Transactional
     public InventoryDto updateStock(String productId, int newStock) {
-        logger.info("Обновление запасов для продукта ID: {}, новое количество: {}", productId, newStock);
+        // КРИТИЧЕСКИЙ МОМЕНТ: очистка ID и поиск по бизнес-ключу productId
+        String cleanId = productId.trim();
+        log.info("Обновление запасов для продукта ID: '{}', новое количество: {}", cleanId, newStock);
 
-        Inventory existing = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new ProductNotFoundException(productId));
+        // Ищем строго по полю productId (не путать с внутренним _id MongoDB)
+        Inventory existing = inventoryRepository.findByProductId(cleanId)
+                .orElseThrow(() -> {
+                    log.error("Продукт с ID: '{}' не найден в базе данных инвентаря", cleanId);
+                    return new ProductNotFoundException(cleanId);
+                });
 
         validateStockLevel(newStock);
         existing.setAvailableStock(newStock);
-        Inventory updatedInventory = inventoryRepository.save(existing);
 
-        logger.info("Запасы для продукта ID: {} успешно обновлены", productId);
+        Inventory updatedInventory = inventoryRepository.save(existing);
+        log.info("Запасы для продукта ID: '{}' успешно обновлены до {}", cleanId, newStock);
         return inventoryMapper.inventoryToInventoryDto(updatedInventory);
     }
 
     @Override
     @Transactional
     public void deleteById(String productId) {
-        logger.info("Удаление записи инвентаря с ID продукта: {}", productId);
-        inventoryRepository.deleteByProductId(productId);
-        logger.info("Запись инвентаря с ID продукта: {} успешно удалена", productId);
-    }
+        String cleanId = productId.trim();
+        log.info("Удаление записи инвентаря для productId: '{}'", cleanId);
 
-    private void validateInventory(Inventory inventory) {
-        if (inventory.getAvailableStock() < 0) {
-            logger.warn("Попытка создать запись инвентаря с отрицательным количеством запасов: {}", inventory.getAvailableStock());
-            throw new InvalidStockLevelException("Количество запасов не может быть отрицательным");
+        if (!inventoryRepository.existsByProductId(cleanId)) {
+            throw new ProductNotFoundException(cleanId);
         }
+
+        inventoryRepository.deleteByProductId(cleanId);
+        log.info("Запись для productId: '{}' успешно удалена", cleanId);
     }
 
-    private void validateStockLevel(int newStock) {
-        if (newStock < 0) {
-            logger.warn("Попытка установить отрицательное количество запасов: {}", newStock);
+    /**
+     * Унифицированная валидация уровня склада
+     */
+    private void validateStockLevel(int stock) {
+        if (stock < 0) {
+            log.warn("Валидация провалена: отрицательный сток {}", stock);
             throw new InvalidStockLevelException("Количество запасов не может быть отрицательным");
         }
     }

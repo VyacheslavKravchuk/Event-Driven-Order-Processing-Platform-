@@ -1,4 +1,4 @@
-package com.inovexx.order_service.client;
+package com.inovexx.order_service.client.grpc_client;
 
 import com.inovexx.order_service.grpc.*;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -39,7 +39,7 @@ public class UserClient {
     }
 
     @Retry(name = "userService")
-    public boolean deductBalance(Long userId, BigDecimal amount, Long orderId) {
+    public boolean deductBalance(Long userId, BigDecimal amount, String orderId) {
         log.info("[GRPC] Списание баланса: User {}, Сумма {}, Заказ {}", userId, amount, orderId);
 
         PaymentRequest request = createPaymentRequest(userId, amount, orderId);
@@ -58,7 +58,7 @@ public class UserClient {
     }
 
     @Retry(name = "userService")
-    public boolean refundBalance(Long userId, BigDecimal amount, Long orderId) {
+    public boolean refundBalance(Long userId, BigDecimal amount, String orderId) {
         log.info("[GRPC] Возврат баланса: User {}, Сумма {}, Заказ {}", userId, amount, orderId);
 
         PaymentRequest request = createPaymentRequest(userId, amount, orderId);
@@ -83,7 +83,7 @@ public class UserClient {
     }
 
     // Выносим создание реквеста, чтобы не дублировать код
-    private PaymentRequest createPaymentRequest(Long userId, BigDecimal amount, Long orderId) {
+    private PaymentRequest createPaymentRequest(Long userId, BigDecimal amount, String orderId) {
         return PaymentRequest.newBuilder()
                 .setUserId(userId)
                 .setAmount(amount.toPlainString()) // Используем toPlainString для точности
